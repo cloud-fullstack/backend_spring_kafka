@@ -137,3 +137,98 @@ CREATE INDEX idx_invoices_payment_id ON invoices(payment_id);
 CREATE INDEX idx_device_tokens_user_id ON device_tokens(user_id);
 CREATE INDEX idx_in_app_notifications_user_id ON in_app_notifications(user_id);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+
+-- Chat Specific Tables
+CREATE TABLE chat_rooms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100),
+    type VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID REFERENCES chat_rooms(id),
+    sender_id UUID REFERENCES users(id),
+    content TEXT NOT NULL,
+    read_by JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE chat_participants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID REFERENCES chat_rooms(id),
+    user_id UUID REFERENCES users(id),
+    role VARCHAR(20) DEFAULT 'participant',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Lab Analysis Specific Tables
+CREATE TABLE lab_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    lab_name VARCHAR(100) NOT NULL,
+    accreditation_number VARCHAR(50),
+    test_types TEXT[],
+    turnaround_time INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE lab_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lab_id UUID REFERENCES lab_profiles(id),
+    patient_name VARCHAR(100) NOT NULL,
+    test_type VARCHAR(100) NOT NULL,
+    order_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    due_date TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(20) DEFAULT 'pending',
+    results TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Restaurant Specific Tables
+CREATE TABLE restaurant_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    restaurant_name VARCHAR(100) NOT NULL,
+    cuisine_type VARCHAR(50),
+    address TEXT,
+    opening_hours JSONB,
+    rating DECIMAL(3,2) DEFAULT 0.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE restaurant_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    restaurant_id UUID REFERENCES restaurant_profiles(id),
+    customer_id UUID REFERENCES users(id),
+    order_items JSONB NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    order_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    delivery_address TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add indexes for new tables
+CREATE INDEX idx_chat_rooms_type ON chat_rooms(type);
+CREATE INDEX idx_chat_messages_room_id ON chat_messages(room_id);
+CREATE INDEX idx_chat_messages_sender_id ON chat_messages(sender_id);
+CREATE INDEX idx_chat_participants_room_id ON chat_participants(room_id);
+CREATE INDEX idx_chat_participants_user_id ON chat_participants(user_id);
+CREATE INDEX idx_lab_profiles_user_id ON lab_profiles(user_id);
+CREATE INDEX idx_lab_orders_lab_id ON lab_orders(lab_id);
+CREATE INDEX idx_lab_orders_status ON lab_orders(status);
+CREATE INDEX idx_lab_orders_order_date ON lab_orders(order_date);
+CREATE INDEX idx_restaurant_profiles_user_id ON restaurant_profiles(user_id);
+CREATE INDEX idx_restaurant_orders_restaurant_id ON restaurant_orders(restaurant_id);
+CREATE INDEX idx_restaurant_orders_customer_id ON restaurant_orders(customer_id);
+CREATE INDEX idx_restaurant_orders_status ON restaurant_orders(status);
+CREATE INDEX idx_restaurant_orders_order_date ON restaurant_orders(order_date);
