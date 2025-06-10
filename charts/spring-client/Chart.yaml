@@ -1,0 +1,19 @@
+apiVersion: v2
+name: spring-client
+version: 1.0.0
+description: Spring Client for Omero
+
+# Source of all code from this chart
+type: application
+
+sources:
+  - https://github.com/your-org/omero
+
+maintainers:
+  - name: Omero Team
+    email: omero@yourdomain.com
+
+dependencies:
+  - name: keycloak
+    version: "18.0.2"
+    repository: "https://codecentric.github.io/helm-charts/"
