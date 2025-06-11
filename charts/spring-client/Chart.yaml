@@ -1,7 +1,7 @@
 apiVersion: v2
 name: spring-client
 version: 1.0.0
-description: Spring Client for Omero
+description: Spring Client for Chatbot
 
 # Source of all code from this chart
 type: application

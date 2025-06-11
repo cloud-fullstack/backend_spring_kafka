@@ -9,7 +9,7 @@ LABEL version="1.0.0"
 LABEL description="Spring Client for Omero"
 
 # Copy application
-COPY target/spring-client-omero.jar .
+COPY target/spring-client-chatbot.jar .
 
 # Expose port
 EXPOSE 8080
@@ -19,4 +19,4 @@ ENV JAVA_OPTS="-Xmx256m -Xms128m"
 ENV SPRING_PROFILES_ACTIVE=prod
 
 # Start application
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "spring-client-omero.jar"]
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "spring-client-chatbot.jar"]

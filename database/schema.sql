@@ -1,13 +1,52 @@
 -- Users Table
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE,
+    password VARCHAR(255),
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
     phone_number VARCHAR(20),
     is_active BOOLEAN DEFAULT true,
     is_reseller BOOLEAN DEFAULT false,
+    is_registered BOOLEAN DEFAULT false,
+    is_demo_user BOOLEAN DEFAULT false,
+    trial_expiry TIMESTAMP WITH TIME ZONE,
+    demo_session_id VARCHAR(255),
+    subscription_plan VARCHAR(20) DEFAULT 'free',
+    registered_business_type VARCHAR(20),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Calendar Appointments Table (For all except e-commerce)
+CREATE TABLE calendar_appointments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    business_type VARCHAR(20) NOT NULL,
+    service_name VARCHAR(255) NOT NULL,
+    location VARCHAR(255),
+    appointment_date DATE NOT NULL,
+    hour INTEGER NOT NULL CHECK (hour BETWEEN 0 AND 23),
+    minute INTEGER NOT NULL CHECK (minute BETWEEN 0 AND 59),
+    is_booked BOOLEAN DEFAULT false,
+    extra_info TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Chat Sessions Table (For e-commerce only)
+CREATE TABLE chat_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    demo_session_id VARCHAR(255),
+    is_registered BOOLEAN DEFAULT false,
+    question TEXT NOT NULL,
+    response TEXT,
+    response_time TIMESTAMP WITH TIME ZONE,
+    is_subscription_active BOOLEAN DEFAULT false,
+    subscription_plan VARCHAR(20) DEFAULT 'free',
+    ecommerce_site_url VARCHAR(255),
+    session_started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -34,6 +73,27 @@ CREATE TABLE subscription_plans (
     currency VARCHAR(3) DEFAULT 'EUR',
     duration_days INTEGER NOT NULL,
     features JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Business Types Table
+CREATE TABLE business_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default business types
+INSERT INTO business_types (name, description) VALUES
+    ('doctor', 'Medical appointments and consultations'),
+    ('lab', 'Laboratory tests and medical examinations'),
+    ('pizza', 'Pizza restaurant reservations'),
+    ('bnb', 'Bed and Breakfast reservations'),
+    ('lawyer', 'Legal consultation appointments'),
+    ('ecommerce', 'E-commerce chat support');,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
