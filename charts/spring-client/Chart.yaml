@@ -7,11 +7,11 @@ description: Spring Client for Chatbot
 type: application
 
 sources:
-  - https://github.com/your-org/omero
+  - https://github.com/your-org/chatbot
 
 maintainers:
   - name: Omero Team
-    email: omero@yourdomain.com
+    email: chatbot@yourdomain.com
 
 dependencies:
   - name: keycloak

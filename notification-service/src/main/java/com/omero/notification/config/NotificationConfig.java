@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class NotificationConfig {
-    private static final String QUEUE_NAME = "omero.notifications";
+    private static final String QUEUE_NAME = "chatbot.notifications";
 
     @Bean
     public Queue notificationQueue() {
