@@ -1,4 +1,4 @@
-# Omero Spring Backend
+# Spring Backend in Kafka
 
 ## Author
 Aldo
