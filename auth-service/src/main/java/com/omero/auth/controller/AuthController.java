@@ -4,6 +4,8 @@ import com.omero.auth.dto.*;
 import com.omero.auth.service.AuthService;
 import com.omero.auth.service.TokenService;
 import com.omero.auth.service.UserService;
+import com.chatbot.auth.dto.SocialUser;
+import com.chatbot.auth.service.SocialTokenValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +20,33 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
+
+    private final UserService userService;
+    private final AuthService authService;
+    private final TokenService tokenService;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final SocialTokenValidator socialTokenValidator;
+
+    // Plan configurations
+    private static final Map<String, PlanConfig> PLAN_CONFIGS = new HashMap<>();
+    static {
+        PLAN_CONFIGS.put("free", new PlanConfig(4, 500, 1, false, false, false));
+        PLAN_CONFIGS.put("bronze", new PlanConfig(30, 10000, 0, true, false, false));
+        PLAN_CONFIGS.put("silver", new PlanConfig(30, 15000, 10, true, false, false));
+        PLAN_CONFIGS.put("gold", new PlanConfig(30, -1, -1, true, true, true));
+        PLAN_CONFIGS.put("whatsapp_jolly_basic", new PlanConfig(30, 5000, 0, false, false, false));
+        PLAN_CONFIGS.put("whatsapp_jolly_addon", new PlanConfig(30, -1, -1, false, false, false));
+    }
+
+    private record PlanConfig(int durationDays, int messageLimit, int voiceHours, boolean webChat, boolean voip, boolean whatsapp) {}
 
     private final UserService userService;
     private final AuthService authService;
@@ -109,16 +133,31 @@ public class AuthController {
     }
 
     private LocalDateTime calculateEndDate(String planName, LocalDateTime startDate) {
-        switch (planName.toLowerCase()) {
-            case "free":
-                return startDate.plusDays(4); // 4-day trial
-            case "bronze":
-            case "silver":
-                return startDate.plusMonths(1); // Monthly plans
-            case "gold":
-                return startDate.plusMonths(1); // Monthly gold plan
-            default:
-                return startDate.plusDays(4); // Default to 4-day trial
-        }
+        PlanConfig config = PLAN_CONFIGS.getOrDefault(planName.toLowerCase(), PLAN_CONFIGS.get("free"));
+        return startDate.plusDays(config.durationDays());
+    }
+
+    private UserDto buildUserWithPlan(String planName, String email, String firstName, String lastName, String password) {
+        PlanConfig config = PLAN_CONFIGS.getOrDefault(planName.toLowerCase(), PLAN_CONFIGS.get("free"));
+        
+        return UserDto.builder()
+                .id(UUID.randomUUID().toString())
+                .email(email)
+                .firstName(firstName)
+                .lastName(lastName)
+                .password(passwordEncoder.encode(password))
+                .role("USER")
+                .isActive(true)
+                .isReseller(false)
+                .planName(planName)
+                .subscriptionStartDate(LocalDateTime.now())
+                .subscriptionEndDate(calculateEndDate(planName, LocalDateTime.now()))
+                .messageLimit(config.messageLimit())
+                .voiceHoursLimit(config.voiceHours())
+                .webChatEnabled(config.webChat())
+                .voipEnabled(config.voip())
+                .whatsappEnabled(config.whatsapp())
+                .authorities(Collections.singleton("ROLE_USER"))
+                .build();
     }
 }
