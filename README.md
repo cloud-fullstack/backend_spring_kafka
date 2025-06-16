@@ -54,7 +54,7 @@ backend-spring-chatbot/
 - SOPS
 
 ### Installation
-1. Run `setup_backend_spring_omero.sh` from setup_scripts directory for Spring backend setup
+1. Run `setup_backend_spring_kafka.sh` from setup_scripts directory for Spring backend setup
 2. Configure secrets with setup_scripts/*.yaml
 3. Deploy services using Helm
 4. Configure database connections
