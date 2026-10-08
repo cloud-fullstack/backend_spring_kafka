@@ -21,7 +21,7 @@ public class RestTransport<T extends Serializable> implements MessageTransport<T
     private TransportMode currentMode = TransportMode.AUTO;
 
     public RestTransport(RestTemplate restTemplate, ObjectMapper objectMapper, 
-                         @Value("${rest.base.url}") String baseUrl) {
+                         @Value("${rest.base.url:}") String baseUrl) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl;

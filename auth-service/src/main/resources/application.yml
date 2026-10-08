@@ -1,34 +1,78 @@
-social:
-  google:
-    client-id: ${SOCIAL_GOOGLE_CLIENT_ID}
-    client-secret: ${SOCIAL_GOOGLE_CLIENT_SECRET}
-  facebook:
-    client-id: ${SOCIAL_FACEBOOK_CLIENT_ID}
-    client-secret: ${SOCIAL_FACEBOOK_CLIENT_SECRET}
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
 
 spring:
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${SOCIAL_GOOGLE_CLIENT_ID}
-            client-secret: ${SOCIAL_GOOGLE_CLIENT_SECRET}
-            scope: profile,email
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-          facebook:
-            client-id: ${SOCIAL_FACEBOOK_CLIENT_ID}
-            client-secret: ${SOCIAL_FACEBOOK_CLIENT_SECRET}
-            scope: email,public_profile
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-        provider:
-          google:
-            authorization-uri: https://accounts.google.com/o/oauth2/auth
-            token-uri: https://oauth2.googleapis.com/token
-            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
-            user-name-attribute: sub
-          facebook:
-            authorization-uri: https://www.facebook.com/v12.0/dialog/oauth
-            token-uri: https://graph.facebook.com/v12.0/oauth/access_token
-            user-info-uri: https://graph.facebook.com/v12.0/me?fields=id,name,email,picture
-            user-name-attribute: id
+  application:
+    name: auth-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/telemaco_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          starttls:
+            enable: true
+
+# PlanAccessService: Caffeine maximumSize 10_000, expireAfterWrite 30s, keyed by JWT uid.
+# After payment or suspension, other replicas see the change within 30 seconds (evict() is local to this pod).
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: 86400000
+
+social:
+  google:
+    enabled: ${SOCIAL_GOOGLE_ENABLED:true}
+    client-id: ${SOCIAL_GOOGLE_CLIENT_ID:}
+  facebook:
+    enabled: ${SOCIAL_FACEBOOK_ENABLED:true}
+    client-id: ${SOCIAL_FACEBOOK_CLIENT_ID:}
+    client-secret: ${SOCIAL_FACEBOOK_CLIENT_SECRET:}
+
+management:
+  health:
+    mail:
+      enabled: false
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://omero.dev,https://www.omero.dev}
+
+app:
+  frontend-base-url: ${FRONTEND_BASE_URL:https://omero.dev}
+  password-reset-ttl-minutes: 30
+
+lemonsqueezy:
+  api-key: ${LEMONSQUEEZY_API_KEY:}
+  store-id: ${LEMONSQUEEZY_STORE_ID:}
+  webhook-secret: ${LEMONSQUEEZY_WEBHOOK_SECRET:}
+  customer-portal-url: ${LEMONSQUEEZY_CUSTOMER_PORTAL_URL:}
+
+logging:
+  level:
+    org.springframework.web.client: WARN
+    org.springframework.web.client.RestTemplate: WARN

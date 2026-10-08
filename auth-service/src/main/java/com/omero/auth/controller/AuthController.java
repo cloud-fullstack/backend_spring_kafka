@@ -1,163 +1,168 @@
 package com.omero.auth.controller;
 
-import com.omero.auth.dto.*;
-import com.omero.auth.service.AuthService;
-import com.omero.auth.service.TokenService;
-import com.omero.auth.service.UserService;
-import com.chatbot.auth.dto.SocialUser;
-import com.chatbot.auth.service.SocialTokenValidator;
+import com.omero.auth.dto.AuthResponse;
+import com.omero.auth.dto.LoginRequest;
+import com.omero.auth.dto.RegisterRequest;
+import com.omero.auth.dto.ResellerRegisterRequest;
+import com.omero.auth.dto.SocialLoginResponse;
+import com.omero.auth.dto.SocialUser;
+import com.omero.auth.entity.Tenant;
+import com.omero.auth.entity.User;
+import com.omero.auth.repository.TenantRepository;
+import com.omero.auth.repository.UserRepository;
+import com.omero.auth.security.JwtTokenProvider;
+import com.omero.auth.service.PlanAccessService;
+import com.omero.auth.service.RegistrationService;
+import com.omero.auth.service.SocialTokenValidator;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.UUID;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final UserService userService;
-    private final AuthService authService;
-    private final TokenService tokenService;
+    private final RegistrationService registrationService;
+    private final UserRepository userRepository;
+    private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final PlanAccessService planAccessService;
     private final SocialTokenValidator socialTokenValidator;
-
-    // Plan configurations
-    private static final Map<String, PlanConfig> PLAN_CONFIGS = new HashMap<>();
-    static {
-        PLAN_CONFIGS.put("free", new PlanConfig(4, 500, 1, false, false, false));
-        PLAN_CONFIGS.put("bronze", new PlanConfig(30, 10000, 0, true, false, false));
-        PLAN_CONFIGS.put("silver", new PlanConfig(30, 15000, 10, true, false, false));
-        PLAN_CONFIGS.put("gold", new PlanConfig(30, -1, -1, true, true, true));
-        PLAN_CONFIGS.put("whatsapp_jolly_basic", new PlanConfig(30, 5000, 0, false, false, false));
-        PLAN_CONFIGS.put("whatsapp_jolly_addon", new PlanConfig(30, -1, -1, false, false, false));
-    }
-
-    private record PlanConfig(int durationDays, int messageLimit, int voiceHours, boolean webChat, boolean voip, boolean whatsapp) {}
-
-    private final UserService userService;
-    private final AuthService authService;
-    private final TokenService tokenService;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
+    private final com.omero.auth.service.PasswordResetService passwordResetService;
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@RequestBody @Validated RegisterRequest request) {
-        // Validate password match
-        if (!request.getPassword().equals(request.getConfirmPassword())) {
-            return ResponseEntity.badRequest().body(new AuthResponse(false, "Passwords do not match"));
-        }
-
-        // Create user
-        UserDto user = UserDto.builder()
-                .id(UUID.randomUUID().toString())
-                .email(request.getEmail())
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role("USER")
-                .isActive(true)
-                .isReseller(false)
-                .planName(request.getPlanName())
-                .subscriptionStartDate(LocalDateTime.now())
-                .subscriptionEndDate(calculateEndDate(request.getPlanName(), LocalDateTime.now()))
-                .authorities(Collections.singleton("ROLE_USER"))
-                .build();
-
-        // Save user
-        UserDto savedUser = userService.registerUser(user);
-
-        // Generate JWT token
-        String token = tokenService.generateToken(savedUser, request.getPlanName());
-
-        return ResponseEntity.ok(new AuthResponse(true, "Registration successful", token));
+    public ResponseEntity<AuthResponse> register(@RequestBody @Valid RegisterRequest request) {
+        RegistrationService.Result result = registrationService.registerCustomer(request);
+        String token = jwtTokenProvider.generateToken(result.user());
+        return ResponseEntity.ok(AuthResponse.builder()
+                .success(true)
+                .message("Registration successful")
+                .token(token)
+                .build());
     }
 
     @PostMapping("/reseller/register")
-    public ResponseEntity<AuthResponse> registerReseller(@RequestBody @Validated ResellerRegisterRequest request) {
-        // Generate referral code
-        String referralCode = "PARTNER" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    public ResponseEntity<AuthResponse> registerReseller(@RequestBody @Valid ResellerRegisterRequest request) {
+        RegistrationService.Result result = registrationService.registerReseller(request);
+        return ResponseEntity.ok(AuthResponse.builder()
+                .success(true)
+                .code("RESELLER_PENDING")
+                .token(null)
+                .referralCode(result.referralCode())
+                .build());
+    }
 
-        // Create reseller user
-        UserDto user = UserDto.builder()
-                .id(UUID.randomUUID().toString())
-                .email(request.getEmail())
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role("RESELLER")
-                .isActive(true)
-                .isReseller(true)
-                .planName("bronze") // Default reseller plan
-                .subscriptionStartDate(LocalDateTime.now())
-                .subscriptionEndDate(calculateEndDate("bronze", LocalDateTime.now()))
-                .authorities(Collections.singleton("ROLE_RESELLER"))
-                .build();
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, Object>> forgotPassword(@RequestBody Map<String, String> body) {
+        passwordResetService.forgot(body == null ? null : body.get("email"));
+        return ResponseEntity.ok(Map.of("success", true));
+    }
 
-        // Save user
-        UserDto savedUser = userService.registerUser(user);
-
-        // Generate JWT token
-        String token = tokenService.generateToken(savedUser, "bronze");
-
-        return ResponseEntity.ok(new AuthResponse(true, "Reseller registration successful", token, referralCode));
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, Object>> resetPassword(@RequestBody Map<String, String> body) {
+        String token = body == null ? null : body.get("token");
+        String password = body == null ? null : body.get("password");
+        passwordResetService.reset(token, password);
+        return ResponseEntity.ok(Map.of("success", true));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody @Validated LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
-
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        String token = tokenService.generateToken(
-                (UserDetails) authentication.getPrincipal(),
-                authentication.getAuthorities().toString()
-        );
-
-        return ResponseEntity.ok(new AuthResponse(true, "Login successful", token));
+    public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
+        User user = userRepository.findByEmailIgnoreCase(RegistrationService.normalizeEmail(request.getEmail()))
+                .orElseThrow(() -> new SecurityException("Invalid credentials"));
+        if (user.getPasswordHash() == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new SecurityException("Invalid credentials");
+        }
+        if (!user.isActive()) {
+            throw new SecurityException("Invalid credentials");
+        }
+        String token = jwtTokenProvider.generateToken(user);
+        return ResponseEntity.ok(AuthResponse.builder()
+                .success(true)
+                .message("Login successful")
+                .token(token)
+                .build());
     }
 
-    private LocalDateTime calculateEndDate(String planName, LocalDateTime startDate) {
-        PlanConfig config = PLAN_CONFIGS.getOrDefault(planName.toLowerCase(), PLAN_CONFIGS.get("free"));
-        return startDate.plusDays(config.durationDays());
+    @PostMapping("/social/{provider}")
+    public ResponseEntity<SocialLoginResponse> socialLogin(
+            @PathVariable String provider,
+            @RequestBody Map<String, String> body) {
+        if (!"google".equalsIgnoreCase(provider) && !"facebook".equalsIgnoreCase(provider)) {
+            throw new IllegalArgumentException("Invalid request");
+        }
+        String idToken = body == null ? null : body.get("id_token");
+        SocialUser socialUser = socialTokenValidator.validate(provider, idToken);
+        if (!socialUser.isEmailVerified()) {
+            throw new SecurityException("Invalid credentials");
+        }
+        User user = userRepository.findByEmailIgnoreCase(RegistrationService.normalizeEmail(socialUser.getEmail()))
+                .map(existing -> linkExisting(provider, existing, socialUser))
+                .orElseGet(() -> registrationService.createFromSocial(provider, socialUser));
+        if (!user.isActive()) {
+            throw new SecurityException("Invalid credentials");
+        }
+        String jwt = jwtTokenProvider.generateToken(user);
+        boolean incomplete = tenantVerticalMissing(user);
+        return ResponseEntity.ok(SocialLoginResponse.builder()
+                .success(true)
+                .message("Login successful")
+                .token(jwt)
+                .profileIncomplete(incomplete)
+                .build());
     }
 
-    private UserDto buildUserWithPlan(String planName, String email, String firstName, String lastName, String password) {
-        PlanConfig config = PLAN_CONFIGS.getOrDefault(planName.toLowerCase(), PLAN_CONFIGS.get("free"));
-        
-        return UserDto.builder()
-                .id(UUID.randomUUID().toString())
-                .email(email)
-                .firstName(firstName)
-                .lastName(lastName)
-                .password(passwordEncoder.encode(password))
-                .role("USER")
-                .isActive(true)
-                .isReseller(false)
-                .planName(planName)
-                .subscriptionStartDate(LocalDateTime.now())
-                .subscriptionEndDate(calculateEndDate(planName, LocalDateTime.now()))
-                .messageLimit(config.messageLimit())
-                .voiceHoursLimit(config.voiceHours())
-                .webChatEnabled(config.webChat())
-                .voipEnabled(config.voip())
-                .whatsappEnabled(config.whatsapp())
-                .authorities(Collections.singleton("ROLE_USER"))
-                .build();
+    @GetMapping("/plan")
+    public ResponseEntity<Map<String, Object>> currentPlan() {
+        UUID uid = currentUserId();
+        PlanAccessService.Entitlement e = planAccessService.resolveByUserId(uid);
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("planId", e.planId() == null ? "" : e.planId());
+        body.put("tenantStatus", e.tenantStatus() == null ? "" : e.tenantStatus());
+        return ResponseEntity.ok(body);
+    }
+
+    private UUID currentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof UUID uid)) {
+            throw new SecurityException("Invalid credentials");
+        }
+        return uid;
+    }
+
+    private User linkExisting(String provider, User existing, SocialUser socialUser) {
+        String sub = socialUser.getSub();
+        if ("google".equalsIgnoreCase(provider)) {
+            if (existing.getGoogleId() != null && !existing.getGoogleId().equals(sub)) {
+                throw new SecurityException("Invalid credentials");
+            }
+            if (existing.getGoogleId() == null) {
+                existing.setGoogleId(sub);
+            }
+        } else if ("facebook".equalsIgnoreCase(provider)) {
+            if (existing.getFacebookId() == null || !existing.getFacebookId().equals(sub)) {
+                throw new SecurityException("Invalid credentials");
+            }
+        }
+        return userRepository.save(existing);
+    }
+
+    private boolean tenantVerticalMissing(User user) {
+        if (user.getTenantId() == null) {
+            return true;
+        }
+        return tenantRepository.findById(user.getTenantId())
+                .map(Tenant::getVertical)
+                .map(v -> v == null || v.isBlank())
+                .orElse(true);
     }
 }
