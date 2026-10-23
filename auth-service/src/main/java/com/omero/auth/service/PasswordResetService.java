@@ -27,6 +27,7 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String frontendBase;
+    private final String mailFrom;
     private final int ttlMinutes;
 
     public PasswordResetService(
@@ -34,11 +35,13 @@ public class PasswordResetService {
             PasswordEncoder passwordEncoder,
             ObjectProvider<JavaMailSender> mailSender,
             @Value("${app.frontend-base-url}") String frontendBase,
+            @Value("${app.mail-from:}") String mailFrom,
             @Value("${app.password-reset-ttl-minutes:30}") int ttlMinutes) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.mailSender = mailSender;
         this.frontendBase = frontendBase;
+        this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.ttlMinutes = ttlMinutes;
     }
 
@@ -76,13 +79,14 @@ public class PasswordResetService {
 
     private void sendMail(String to, String token) {
         JavaMailSender sender = mailSender.getIfAvailable();
-        if (sender == null) {
+        if (sender == null || mailFrom.isBlank()) {
             log.warn("SMTP not configured; password reset mail not sent");
             return;
         }
         String link = frontendBase.replaceAll("/$", "") + "/reset-password?token=" + token;
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setFrom(mailFrom);
             msg.setTo(to);
             msg.setSubject("Password reset");
             msg.setText("Reset your password: " + link + "\nThis link expires in " + ttlMinutes + " minutes.");

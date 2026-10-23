@@ -27,6 +27,7 @@ spring:
     properties:
       mail:
         smtp:
+          auth: true
           starttls:
             enable: true
 
@@ -39,10 +40,10 @@ jwt:
 
 social:
   google:
-    enabled: ${SOCIAL_GOOGLE_ENABLED:true}
+    enabled: ${SOCIAL_GOOGLE_ENABLED:false}
     client-id: ${SOCIAL_GOOGLE_CLIENT_ID:}
   facebook:
-    enabled: ${SOCIAL_FACEBOOK_ENABLED:true}
+    enabled: ${SOCIAL_FACEBOOK_ENABLED:false}
     client-id: ${SOCIAL_FACEBOOK_CLIENT_ID:}
     client-secret: ${SOCIAL_FACEBOOK_CLIENT_SECRET:}
 
@@ -64,6 +65,7 @@ cors:
 
 app:
   frontend-base-url: ${FRONTEND_BASE_URL:https://omero.dev}
+  mail-from: ${SMTP_FROM:}
   password-reset-ttl-minutes: 30
 
 lemonsqueezy:

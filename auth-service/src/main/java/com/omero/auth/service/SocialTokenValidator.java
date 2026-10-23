@@ -30,6 +30,7 @@ public class SocialTokenValidator {
 
     private final RestTemplate restTemplate;
     private final boolean googleEnabled;
+    private final String googleClientId;
     private final GoogleIdTokenVerifier googleVerifier;
     private final boolean facebookEnabled;
     private final String facebookAppId;
@@ -37,32 +38,43 @@ public class SocialTokenValidator {
 
     public SocialTokenValidator(
             RestTemplate restTemplate,
-            @Value("${social.google.enabled:true}") boolean googleEnabled,
+            @Value("${social.google.enabled:false}") boolean googleEnabled,
             @Value("${social.google.client-id:}") String googleClientId,
-            @Value("${social.facebook.enabled:true}") boolean facebookEnabled,
+            @Value("${social.facebook.enabled:false}") boolean facebookEnabled,
             @Value("${social.facebook.client-id:}") String facebookAppId,
             @Value("${social.facebook.client-secret:}") String facebookAppSecret) {
         this.restTemplate = restTemplate;
-        this.googleEnabled = googleEnabled;
-        if (googleEnabled) {
-            if (googleClientId == null || googleClientId.isBlank()) {
-                throw new IllegalStateException("social.google.client-id is required (or set social.google.enabled=false)");
-            }
+        this.googleClientId = googleClientId == null ? "" : googleClientId.trim();
+        boolean googleOn = googleEnabled && !this.googleClientId.isBlank();
+        this.googleEnabled = googleOn;
+        if (googleOn) {
             this.googleVerifier = new GoogleIdTokenVerifier.Builder(
                     new NetHttpTransport(), GsonFactory.getDefaultInstance())
-                    .setAudience(Collections.singletonList(googleClientId.trim()))
+                    .setAudience(Collections.singletonList(this.googleClientId))
                     .setIssuers(List.of("accounts.google.com", "https://accounts.google.com"))
                     .build();
         } else {
             this.googleVerifier = null;
         }
-        this.facebookEnabled = facebookEnabled;
         this.facebookAppId = facebookAppId == null ? "" : facebookAppId.trim();
         this.facebookAppSecret = facebookAppSecret == null ? "" : facebookAppSecret;
-        if (facebookEnabled && (this.facebookAppId.isBlank() || this.facebookAppSecret.isBlank())) {
-            throw new IllegalStateException(
-                    "social.facebook.client-id and client-secret are required (or set social.facebook.enabled=false)");
-        }
+        this.facebookEnabled = facebookEnabled && !this.facebookAppId.isBlank() && !this.facebookAppSecret.isBlank();
+    }
+
+    public boolean isGoogleEnabled() {
+        return googleEnabled;
+    }
+
+    public String getGoogleClientId() {
+        return googleClientId;
+    }
+
+    public boolean isFacebookEnabled() {
+        return facebookEnabled;
+    }
+
+    public String getFacebookAppId() {
+        return facebookAppId;
     }
 
     public SocialUser validate(String provider, String idToken) {

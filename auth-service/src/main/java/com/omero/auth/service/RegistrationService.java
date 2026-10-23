@@ -158,6 +158,30 @@ public class RegistrationService {
         return userRepository.save(user);
     }
 
+    @Transactional
+    public void completeProfile(java.util.UUID userId, String verticalRaw, String companyName) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new SecurityException("Invalid credentials"));
+        if (user.getTenantId() == null) {
+            throw new IllegalArgumentException("Invalid request");
+        }
+        String vertical = Optional.ofNullable(verticalRaw).orElse("").trim().toLowerCase(Locale.ROOT);
+        if (vertical.isBlank() || !verticalRepository.existsByCodeAndActiveTrue(vertical)) {
+            throw new IllegalArgumentException("Invalid vertical");
+        }
+        Tenant tenant = tenantRepository.findById(user.getTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid request"));
+        tenant.setVertical(vertical);
+        if (companyName != null && !companyName.isBlank()) {
+            String name = companyName.trim();
+            tenant.setCompanyName(name);
+            tenant.setName(name);
+            user.setBusinessName(name);
+            userRepository.save(user);
+        }
+        tenantRepository.save(tenant);
+    }
+
     private Tenant newDemoTenant(String email, String name, String vertical, String country) {
         Tenant tenant = new Tenant();
         tenant.setName(Optional.ofNullable(name).filter(s -> !s.isBlank()).orElse(email));

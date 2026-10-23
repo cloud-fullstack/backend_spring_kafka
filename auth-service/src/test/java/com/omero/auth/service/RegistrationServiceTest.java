@@ -5,6 +5,7 @@ import com.omero.auth.dto.ResellerRegisterRequest;
 import com.omero.auth.entity.Reseller;
 import com.omero.auth.entity.Tenant;
 import com.omero.auth.entity.User;
+import com.omero.auth.entity.User;
 import com.omero.auth.repository.BusinessVerticalRepository;
 import com.omero.auth.repository.ResellerRepository;
 import com.omero.auth.repository.TenantRepository;
@@ -171,6 +172,26 @@ class RegistrationServiceTest {
         assertEquals("IT123", cap.getValue().getVatNumber());
         assertEquals("IT", cap.getValue().getCountry());
         assertEquals("pending", cap.getValue().getStatus());
+    }
+
+    @Test
+    void completeProfileSetsVerticalOnTenant() {
+        UUID userId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        user.setTenantId(tenantId);
+        Tenant tenant = new Tenant();
+        tenant.setId(tenantId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(verticalRepository.existsByCodeAndActiveTrue("vehicle_rental")).thenReturn(true);
+
+        service.completeProfile(userId, "vehicle_rental", "Noleggio");
+
+        assertEquals("vehicle_rental", tenant.getVertical());
+        assertEquals("Noleggio", tenant.getCompanyName());
+        verify(tenantRepository).save(tenant);
     }
 
     @Test

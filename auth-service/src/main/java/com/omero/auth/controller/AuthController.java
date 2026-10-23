@@ -1,6 +1,7 @@
 package com.omero.auth.controller;
 
 import com.omero.auth.dto.AuthResponse;
+import com.omero.auth.dto.CompleteProfileRequest;
 import com.omero.auth.dto.LoginRequest;
 import com.omero.auth.dto.RegisterRequest;
 import com.omero.auth.dto.ResellerRegisterRequest;
@@ -93,6 +94,18 @@ public class AuthController {
                 .build());
     }
 
+    @GetMapping("/social/config")
+    public Map<String, Object> socialConfig() {
+        return Map.of(
+                "googleEnabled", socialTokenValidator.isGoogleEnabled(),
+                "googleClientId", socialTokenValidator.getGoogleClientId() == null
+                        ? "" : socialTokenValidator.getGoogleClientId(),
+                "facebookEnabled", socialTokenValidator.isFacebookEnabled(),
+                "facebookAppId", socialTokenValidator.getFacebookAppId() == null
+                        ? "" : socialTokenValidator.getFacebookAppId()
+        );
+    }
+
     @PostMapping("/social/{provider}")
     public ResponseEntity<SocialLoginResponse> socialLogin(
             @PathVariable String provider,
@@ -119,6 +132,12 @@ public class AuthController {
                 .token(jwt)
                 .profileIncomplete(incomplete)
                 .build());
+    }
+
+    @PostMapping("/complete-profile")
+    public ResponseEntity<Map<String, Object>> completeProfile(@RequestBody @Valid CompleteProfileRequest request) {
+        registrationService.completeProfile(currentUserId(), request.getVertical(), request.getCompanyName());
+        return ResponseEntity.ok(Map.of("success", true));
     }
 
     @GetMapping("/plan")
