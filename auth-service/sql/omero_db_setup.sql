@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid()
 );
 CREATE TABLE IF NOT EXISTS subscription_plans (
-    id    UUID PRIMARY KEY,
+    id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code  VARCHAR(255),
     name  VARCHAR(255),
     price NUMERIC
@@ -82,6 +82,8 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS name                          VARCH
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email                         VARCHAR(255);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS status                        VARCHAR(20) DEFAULT 'demo';
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vertical                      VARCHAR(30) REFERENCES business_verticals(code);
+-- createFromSocial salva vertical = NULL finché non arriva complete-profile
+ALTER TABLE tenants ALTER COLUMN vertical DROP NOT NULL;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name                  VARCHAR(200);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vat_number                    VARCHAR(20);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country                       CHAR(2);
@@ -178,5 +180,22 @@ ALTER TABLE lemon_webhook_events ALTER COLUMN event_name TYPE VARCHAR(255);
 ALTER TABLE billing_commissions ALTER COLUMN plan_code TYPE VARCHAR(255);
 ALTER TABLE billing_commissions ALTER COLUMN status TYPE VARCHAR(255);
 ALTER TABLE billing_commissions ALTER COLUMN lemon_order_id TYPE VARCHAR(255);
+
+-- 9. Date senza fuso -> timestamptz (solo se serve, così si può rieseguire)
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name IN ('users', 'resellers', 'tenants')
+      AND column_name IN ('created_at', 'updated_at', 'approved_at', 'last_seen_at', 'reset_token_expires')
+      AND data_type = 'timestamp without time zone'
+  LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I TYPE timestamptz USING %I AT TIME ZONE ''UTC''',
+                   r.table_name, r.column_name, r.column_name);
+  END LOOP;
+END $$;
 
 COMMIT;

@@ -5,7 +5,6 @@ import com.omero.auth.dto.ResellerRegisterRequest;
 import com.omero.auth.entity.Reseller;
 import com.omero.auth.entity.Tenant;
 import com.omero.auth.entity.User;
-import com.omero.auth.entity.User;
 import com.omero.auth.repository.BusinessVerticalRepository;
 import com.omero.auth.repository.ResellerRepository;
 import com.omero.auth.repository.TenantRepository;
@@ -23,7 +22,11 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class RegistrationServiceTest {
@@ -40,13 +43,13 @@ class RegistrationServiceTest {
     void setUp() {
         service = new RegistrationService(
                 userRepository, tenantRepository, resellerRepository, verticalRepository, passwordEncoder);
-        when(passwordEncoder.encode(any())).thenReturn("hashed");
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+        lenient().when(passwordEncoder.encode(any())).thenReturn("hashed");
+        lenient().when(userRepository.save(any(User.class))).thenAnswer(inv -> {
             User u = inv.getArgument(0);
             u.setId(UUID.randomUUID());
             return u;
         });
-        when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
+        lenient().when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
             Tenant t = inv.getArgument(0);
             t.setId(UUID.randomUUID());
             return t;
