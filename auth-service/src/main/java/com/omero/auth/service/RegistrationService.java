@@ -220,7 +220,7 @@ public class RegistrationService {
         throw new IllegalStateException("Could not allocate referral code");
     }
 
-    static String normalizeEmail(String email) {
+    public static String normalizeEmail(String email) {
         if (email == null) {
             throw new IllegalArgumentException("Invalid request");
         }
