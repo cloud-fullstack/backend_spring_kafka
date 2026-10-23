@@ -4,6 +4,7 @@ import com.omero.auth.dto.AuthResponse;
 import com.omero.auth.dto.CompleteProfileRequest;
 import com.omero.auth.dto.LoginRequest;
 import com.omero.auth.dto.RegisterRequest;
+import com.omero.auth.dto.ResetPasswordRequest;
 import com.omero.auth.dto.ResellerRegisterRequest;
 import com.omero.auth.dto.SocialLoginResponse;
 import com.omero.auth.dto.SocialUser;
@@ -69,10 +70,8 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<Map<String, Object>> resetPassword(@RequestBody Map<String, String> body) {
-        String token = body == null ? null : body.get("token");
-        String password = body == null ? null : body.get("password");
-        passwordResetService.reset(token, password);
+    public ResponseEntity<Map<String, Object>> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+        passwordResetService.reset(request.getToken(), request.getPassword());
         return ResponseEntity.ok(Map.of("success", true));
     }
 

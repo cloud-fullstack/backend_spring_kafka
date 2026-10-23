@@ -8,7 +8,7 @@ spring:
   application:
     name: auth-service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/telemaco_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/omero_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:}
   jpa:
@@ -73,6 +73,7 @@ lemonsqueezy:
   store-id: ${LEMONSQUEEZY_STORE_ID:}
   webhook-secret: ${LEMONSQUEEZY_WEBHOOK_SECRET:}
   customer-portal-url: ${LEMONSQUEEZY_CUSTOMER_PORTAL_URL:}
+  test-mode: ${LEMONSQUEEZY_TEST_MODE:true}
 
 logging:
   level:

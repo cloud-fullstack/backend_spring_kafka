@@ -12,6 +12,7 @@ import com.omero.auth.repository.TenantRepository;
 import com.omero.auth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ public class LemonWebhookService {
     private final SubscriptionPlanRepository planRepository;
     private final BillingCommissionRepository commissionRepository;
     private final PlanAccessService planAccessService;
+    private final boolean testMode;
 
     public LemonWebhookService(
             LemonWebhookEventRepository eventRepository,
@@ -44,18 +46,25 @@ public class LemonWebhookService {
             TenantRepository tenantRepository,
             SubscriptionPlanRepository planRepository,
             BillingCommissionRepository commissionRepository,
-            PlanAccessService planAccessService) {
+            PlanAccessService planAccessService,
+            @Value("${lemonsqueezy.test-mode:true}") boolean testMode) {
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.planRepository = planRepository;
         this.commissionRepository = commissionRepository;
         this.planAccessService = planAccessService;
+        this.testMode = testMode;
     }
 
     @Transactional
     public void handle(JsonNode root) {
         if (root == null || root.isMissingNode()) {
+            return;
+        }
+        boolean payloadTest = root.path("meta").path("test_mode").asBoolean(false);
+        if (payloadTest != testMode) {
+            log.warn("Lemon webhook ignored: payload test_mode={} expected={}", payloadTest, testMode);
             return;
         }
         String eventName = text(root.path("meta").path("event_name"));

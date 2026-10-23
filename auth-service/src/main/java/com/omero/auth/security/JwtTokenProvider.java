@@ -3,12 +3,12 @@ package com.omero.auth.security;
 import com.omero.auth.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.util.Base64;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,16 +25,14 @@ public class JwtTokenProvider {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("jwt.secret is required");
         }
-        byte[] bytes;
-        try {
-            bytes = Base64.getDecoder().decode(secret);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("jwt.secret must be base64");
-        }
+        // Stessi byte di PyJWT: la stringa UTF-8, senza decode base64.
+        // JWT_SECRET (Spring) e JWT_SECRET_KEY (backend-llm) devono essere la stessa stringa.
+        byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
         if (bytes.length < 32) {
-            throw new IllegalStateException("jwt.secret: almeno 32 byte in base64");
+            throw new IllegalStateException("jwt.secret: almeno 32 byte UTF-8");
         }
-        this.key = Keys.hmacShaKeyFor(bytes);
+        // HmacSHA256 fisso: Keys.hmacShaKeyFor sceglierebbe HS384/HS512 da 48/64 byte.
+        this.key = new SecretKeySpec(bytes, "HmacSHA256");
         this.expirationMs = expirationMs;
     }
 
@@ -47,7 +45,7 @@ public class JwtTokenProvider {
                 .claim("tid", user.getTenantId() != null ? user.getTenantId().toString() : null)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))
-                .signWith(key)
+                .signWith(key, Jwts.SIG.HS256)
                 .compact();
     }
 

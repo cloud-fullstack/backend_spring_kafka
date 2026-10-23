@@ -1,4 +1,4 @@
--- Run on telemaco_db before deploying auth-service with billing. Schema of existing tables is unchanged.
+-- Incluso in omero_db_setup.sql. DEV: omero_db. PROD Spring: telemaco_db.
 
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS lemon_subscription_updated_at TIMESTAMPTZ;
 

@@ -2,10 +2,17 @@
 -- Hibernate ddl-auto=validate: se manca una colonna (reset_token, google_id, …)
 -- o la tabella resellers, lo Spring non parte.
 --
---   kubectl exec -i -n telemaco-ns postgres-0 -- \
---     psql -U postgres -d telemaco_db < backend_spring_kafka/auth-service/sql/omero_db_setup.sql
+-- DEV = omero_db (account/fatturazione). telemaco_db resta a PROD Spring + demo LLM.
+-- Una tantum, come postgres:
 --   kubectl exec -n telemaco-ns postgres-0 -- \
---     psql -U postgres -d telemaco_db -c '\d users'
+--     psql -U postgres -c "CREATE DATABASE omero_db OWNER postgres;"
+-- Se SPRING_DATASOURCE_USERNAME non è postgres:
+--     GRANT ALL ON DATABASE omero_db TO <utente>;
+-- Poi lo schema:
+--   kubectl exec -i -n telemaco-ns postgres-0 -- \
+--     psql -U postgres -d omero_db < backend_spring_kafka/auth-service/sql/omero_db_setup.sql
+--   kubectl exec -n telemaco-ns postgres-0 -- \
+--     psql -U postgres -d omero_db -c '\d users'
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS users (

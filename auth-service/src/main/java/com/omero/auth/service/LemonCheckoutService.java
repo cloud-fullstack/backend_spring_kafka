@@ -39,6 +39,7 @@ public class LemonCheckoutService {
     private final String storeId;
     private final String frontendBase;
     private final String customerPortalUrl;
+    private final boolean testMode;
 
     public LemonCheckoutService(
             UserRepository userRepository,
@@ -49,7 +50,8 @@ public class LemonCheckoutService {
             @Value("${lemonsqueezy.api-key:}") String apiKey,
             @Value("${lemonsqueezy.store-id:}") String storeId,
             @Value("${app.frontend-base-url}") String frontendBase,
-            @Value("${lemonsqueezy.customer-portal-url:}") String customerPortalUrl) {
+            @Value("${lemonsqueezy.customer-portal-url:}") String customerPortalUrl,
+            @Value("${lemonsqueezy.test-mode:true}") boolean testMode) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.planRepository = planRepository;
@@ -59,6 +61,7 @@ public class LemonCheckoutService {
         this.storeId = storeId;
         this.frontendBase = frontendBase;
         this.customerPortalUrl = customerPortalUrl;
+        this.testMode = testMode;
     }
 
     public String checkoutUrl(UUID userId, String planCode) {
@@ -100,6 +103,7 @@ public class LemonCheckoutService {
         Map<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("checkout_data", checkoutData);
         attributes.put("checkout_options", Map.of("embed", false));
+        attributes.put("test_mode", testMode);
         attributes.put("product_options", Map.of(
                 "redirect_url", frontendBase.replaceAll("/$", "") + "/billing/success"));
 

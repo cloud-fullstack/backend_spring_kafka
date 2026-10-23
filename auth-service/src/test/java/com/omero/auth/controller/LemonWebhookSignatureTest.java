@@ -18,5 +18,7 @@ class LemonWebhookSignatureTest {
         assertFalse(LemonSignature.isValid("Jefe", body, sig.replace('5', '6')));
         assertFalse(LemonSignature.isValid("Jefe", body, null));
         assertFalse(LemonSignature.isValid("Jefe", "altro".getBytes(StandardCharsets.UTF_8), sig));
+        assertFalse(LemonSignature.isValid("", body, sig));
+        assertFalse(LemonSignature.isValid(null, body, sig));
     }
 }

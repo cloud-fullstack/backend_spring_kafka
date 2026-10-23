@@ -30,6 +30,9 @@ public class LemonWebhookController {
     public ResponseEntity<Void> webhook(
             @RequestBody byte[] body,
             @RequestHeader(value = "X-Signature", required = false) String sig) throws Exception {
+        if (webhookSecret == null || webhookSecret.isBlank()) {
+            return ResponseEntity.status(503).build();
+        }
         if (!LemonSignature.isValid(webhookSecret, body, sig)) {
             return ResponseEntity.status(401).build();
         }
