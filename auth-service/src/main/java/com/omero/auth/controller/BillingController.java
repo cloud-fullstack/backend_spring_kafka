@@ -2,8 +2,12 @@ package com.omero.auth.controller;
 
 import com.omero.auth.entity.SubscriptionPlan;
 import com.omero.auth.repository.SubscriptionPlanRepository;
+import com.omero.auth.service.BillingAccountService;
 import com.omero.auth.service.LemonCheckoutService;
+import com.omero.auth.service.StripeCheckoutService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.http.ResponseEntity;
@@ -25,10 +29,18 @@ import java.util.UUID;
 public class BillingController {
 
     private final LemonCheckoutService checkoutService;
+    private final StripeCheckoutService stripeCheckout;
+    private final BillingAccountService billingAccounts;
     private final SubscriptionPlanRepository planRepository;
 
-    public BillingController(LemonCheckoutService checkoutService, SubscriptionPlanRepository planRepository) {
+    public BillingController(
+            LemonCheckoutService checkoutService,
+            StripeCheckoutService stripeCheckout,
+            BillingAccountService billingAccounts,
+            SubscriptionPlanRepository planRepository) {
         this.checkoutService = checkoutService;
+        this.stripeCheckout = stripeCheckout;
+        this.billingAccounts = billingAccounts;
         this.planRepository = planRepository;
     }
 
@@ -40,6 +52,18 @@ public class BillingController {
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, String>> checkout(@RequestBody @Valid CheckoutRequest request) {
         String url = checkoutService.checkoutUrl(currentUserId(), request.getPlanCode());
+        return ResponseEntity.ok(Map.of("url", url));
+    }
+
+    @GetMapping("/account")
+    public Map<String, Object> account() {
+        return billingAccounts.snapshot(currentUserId());
+    }
+
+    @PostMapping("/credits")
+    public ResponseEntity<Map<String, String>> credits(@RequestBody @Valid CreditsRequest request) {
+        long cents = Math.round(request.getAmountEur() * 100);
+        String url = stripeCheckout.creditsCheckoutUrl(currentUserId(), cents);
         return ResponseEntity.ok(Map.of("url", url));
     }
 
@@ -63,5 +87,12 @@ public class BillingController {
     public static class CheckoutRequest {
         @NotBlank
         private String planCode;
+    }
+
+    @Data
+    public static class CreditsRequest {
+        @DecimalMin("5")
+        @DecimalMax("50000")
+        private double amountEur;
     }
 }

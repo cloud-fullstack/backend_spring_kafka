@@ -75,6 +75,13 @@ lemonsqueezy:
   customer-portal-url: ${LEMONSQUEEZY_CUSTOMER_PORTAL_URL:}
   test-mode: ${LEMONSQUEEZY_TEST_MODE:true}
 
+stripe:
+  secret-key: ${STRIPE_SECRET_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  test-mode: ${STRIPE_TEST_MODE:true}
+  api-version: ${STRIPE_API_VERSION:2026-04-22.dahlia}
+  credits-tax-code: ${STRIPE_CREDITS_TAX_CODE:txcd_10105002}
+
 logging:
   level:
     org.springframework.web.client: WARN

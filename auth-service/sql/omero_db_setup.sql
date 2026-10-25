@@ -205,4 +205,35 @@ BEGIN
   END LOOP;
 END $$;
 
+-- 10. Crediti Stripe (Managed Payments). Lemon resta per i piani finché non si migra.
+CREATE TABLE IF NOT EXISTS billing_accounts (
+    tenant_id                      UUID PRIMARY KEY REFERENCES tenants(id),
+    balance_cents                  BIGINT NOT NULL DEFAULT 0,
+    spend_month_cents              BIGINT NOT NULL DEFAULT 0,
+    spend_month                    VARCHAR(7),
+    stripe_customer_id             VARCHAR(255),
+    card_last4                     VARCHAR(4),
+    auto_recharge                  BOOLEAN NOT NULL DEFAULT false,
+    auto_recharge_threshold_cents  BIGINT,
+    auto_recharge_amount_cents     BIGINT,
+    updated_at                     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+    event_id    VARCHAR(255) PRIMARY KEY,
+    event_name  VARCHAR(255) NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Acquisti crediti: accredito solo se paid; storno rimborsi/dispute in proporzione (IVA inclusa nell'addebito).
+CREATE TABLE IF NOT EXISTS credit_purchases (
+    checkout_session_id VARCHAR(255) PRIMARY KEY,
+    tenant_id           UUID NOT NULL REFERENCES tenants(id),
+    payment_intent_id   VARCHAR(255) UNIQUE,
+    credit_cents        BIGINT NOT NULL,
+    amount_total_cents  BIGINT NOT NULL DEFAULT 0,
+    reversed_cents      BIGINT NOT NULL DEFAULT 0,
+    status              VARCHAR(255) NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE credit_purchases ADD COLUMN IF NOT EXISTS amount_total_cents BIGINT NOT NULL DEFAULT 0;
+
 COMMIT;

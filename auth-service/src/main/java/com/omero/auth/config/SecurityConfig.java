@@ -45,7 +45,7 @@ public class SecurityConfig {
                                 "/api/auth/register", "/api/auth/reseller/register",
                                 "/api/auth/login", "/api/auth/social/*",
                                 "/api/auth/forgot-password", "/api/auth/reset-password",
-                                "/webhooks/lemonsqueezy").permitAll()
+                                "/webhooks/lemonsqueezy", "/webhooks/stripe").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/billing/plans", "/api/auth/social/config").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
