@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface BillingCommissionRepository extends JpaRepository<BillingCommission, UUID> {
     boolean existsByLemonOrderId(String lemonOrderId);
+    boolean existsByStripeInvoiceId(String stripeInvoiceId);
+    java.util.Optional<BillingCommission> findByStripePaymentIntentId(String stripePaymentIntentId);
 }

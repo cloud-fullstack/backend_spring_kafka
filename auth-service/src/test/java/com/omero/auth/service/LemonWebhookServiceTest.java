@@ -1,10 +1,8 @@
 package com.omero.auth.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.omero.auth.repository.BillingCommissionRepository;
 import com.omero.auth.repository.LemonWebhookEventRepository;
 import com.omero.auth.repository.SubscriptionPlanRepository;
-import com.omero.auth.repository.TenantRepository;
 import com.omero.auth.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,17 +19,15 @@ class LemonWebhookServiceTest {
 
     @Mock LemonWebhookEventRepository events;
     @Mock UserRepository users;
-    @Mock TenantRepository tenants;
     @Mock SubscriptionPlanRepository plans;
-    @Mock BillingCommissionRepository commissions;
-    @Mock PlanAccessService planAccess;
+    @Mock SubscriptionStateService subscriptionState;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private LemonWebhookService dev;
 
     @BeforeEach
     void setUp() {
-        dev = new LemonWebhookService(events, users, tenants, plans, commissions, planAccess, true);
+        dev = new LemonWebhookService(events, users, plans, subscriptionState, true);
     }
 
     @Test

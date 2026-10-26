@@ -42,6 +42,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(uid)
                 .claim("uid", uid)
+                .claim("tenant_id", user.getTenantId() != null ? user.getTenantId().toString() : null)
                 .claim("tid", user.getTenantId() != null ? user.getTenantId().toString() : null)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))

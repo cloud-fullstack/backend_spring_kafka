@@ -45,4 +45,10 @@ public class Tenant {
 
     @Column(name = "lemon_subscription_updated_at")
     private OffsetDateTime lemonSubscriptionUpdatedAt;
+
+    @Column(name = "stripe_subscription_updated_at")
+    private OffsetDateTime stripeSubscriptionUpdatedAt;
+
+    @Column(name = "suspended_at")
+    private OffsetDateTime suspendedAt;
 }

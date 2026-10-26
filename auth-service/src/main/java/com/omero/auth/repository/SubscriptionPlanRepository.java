@@ -3,10 +3,13 @@ package com.omero.auth.repository;
 import com.omero.auth.entity.SubscriptionPlan;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface SubscriptionPlanRepository extends JpaRepository<SubscriptionPlan, UUID> {
     Optional<SubscriptionPlan> findByCodeIgnoreCase(String code);
     Optional<SubscriptionPlan> findByLemonVariantId(String lemonVariantId);
+    Optional<SubscriptionPlan> findByStripePriceId(String stripePriceId);
+    List<SubscriptionPlan> findAllByOrderBySortOrderAsc();
 }

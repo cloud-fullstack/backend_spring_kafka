@@ -67,6 +67,7 @@ app:
   frontend-base-url: ${FRONTEND_BASE_URL:https://omero.dev}
   mail-from: ${SMTP_FROM:}
   password-reset-ttl-minutes: 30
+  support-email: ${SUPPORT_EMAIL:support@telemaco.app}
 
 lemonsqueezy:
   api-key: ${LEMONSQUEEZY_API_KEY:}
@@ -75,10 +76,24 @@ lemonsqueezy:
   customer-portal-url: ${LEMONSQUEEZY_CUSTOMER_PORTAL_URL:}
   test-mode: ${LEMONSQUEEZY_TEST_MODE:true}
 
+channels:
+  internal-url: ${CHANNELS_INTERNAL_URL:}
+  internal-token: ${CHANNELS_INTERNAL_TOKEN:}
+
+llm:
+  entitlements-url: ${LLM_ENTITLEMENTS_URL:}
+  entitlements-env: ${BILLING_ENV:}
+  internal-token: ${LLM_INTERNAL_TOKEN:}
+
+billing:
+  plans-provider: ${BILLING_PLANS_PROVIDER:stripe}
+
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
   test-mode: ${STRIPE_TEST_MODE:true}
+  # Header delle chiamate API. I webhook usano la versione dell'endpoint in Dashboard:
+  # impostare anche lì 2026-04-22.dahlia (piani, cancellazione a fine periodo, tax code MP).
   api-version: ${STRIPE_API_VERSION:2026-04-22.dahlia}
   credits-tax-code: ${STRIPE_CREDITS_TAX_CODE:txcd_10105002}
 

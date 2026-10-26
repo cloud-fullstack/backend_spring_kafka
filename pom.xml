@@ -11,6 +11,7 @@
 
     <modules>
         <module>auth-service</module>
+        <module>channels-service</module>
         <module>notification-service</module>
         <module>subscription-service</module>
     </modules>

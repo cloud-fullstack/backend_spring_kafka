@@ -2,8 +2,11 @@ package com.omero.auth.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.omero.auth.entity.CreditPurchase;
+import com.omero.auth.repository.BillingCommissionRepository;
 import com.omero.auth.repository.CreditPurchaseRepository;
 import com.omero.auth.repository.StripeWebhookEventRepository;
+import com.omero.auth.repository.StripeInvoicePaymentRepository;
+import com.omero.auth.repository.SubscriptionRefundRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +32,10 @@ class StripeWebhookServiceTest {
     @Mock StripeWebhookEventRepository events;
     @Mock CreditPurchaseRepository purchases;
     @Mock BillingAccountService accounts;
+    @Mock SubscriptionStateService subscriptions;
+    @Mock SubscriptionRefundRepository subscriptionRefunds;
+    @Mock BillingCommissionRepository commissions;
+    @Mock StripeInvoicePaymentRepository invoicePayments;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private StripeWebhookService testMode;
@@ -35,7 +43,11 @@ class StripeWebhookServiceTest {
 
     @BeforeEach
     void setUp() {
-        testMode = new StripeWebhookService(events, purchases, accounts, true);
+        testMode = new StripeWebhookService(
+                events, purchases, accounts, subscriptions, subscriptionRefunds, commissions, invoicePayments, true);
+        lenient().when(subscriptionRefunds.existsByPaymentIntentId(anyString())).thenReturn(false);
+        lenient().when(commissions.findByStripePaymentIntentId(anyString())).thenReturn(Optional.empty());
+        lenient().when(invoicePayments.existsByPaymentIntentId(anyString())).thenReturn(false);
     }
 
     @Test
@@ -96,11 +108,26 @@ class StripeWebhookServiceTest {
     void reverseBeforePurchaseThrowsSoStripeRetries() throws Exception {
         when(events.insertIfAbsent(any(), any())).thenReturn(1);
         when(purchases.findByPaymentIntentId("pi_1")).thenReturn(Optional.empty());
+        long now = java.time.Instant.now().getEpochSecond();
         assertThrows(IllegalStateException.class, () -> testMode.handle(mapper.readTree("""
-                {"id":"evt_r","livemode":false,"type":"charge.refunded",
+                {"id":"evt_r","created":%d,"livemode":false,"type":"charge.refunded",
                  "data":{"object":{"payment_intent":"pi_1","amount":3050,"amount_refunded":3050}}}
-                """)));
+                """.formatted(now))));
         verify(accounts, never()).addCredits(any(), anyLong());
+    }
+
+    @Test
+    void subscriptionRefundDoesNotThrow() throws Exception {
+        when(events.insertIfAbsent(any(), any())).thenReturn(1);
+        when(purchases.findByPaymentIntentId("pi_sub")).thenReturn(Optional.empty());
+        when(subscriptionRefunds.existsByPaymentIntentId("pi_sub")).thenReturn(true);
+        long now = java.time.Instant.now().getEpochSecond();
+        testMode.handle(mapper.readTree("""
+                {"id":"evt_r","created":%d,"livemode":false,"type":"charge.refunded",
+                 "data":{"object":{"payment_intent":"pi_sub","amount":4500,"amount_refunded":2250}}}
+                """.formatted(now)));
+        verify(accounts, never()).addCredits(any(), anyLong());
+        verify(subscriptions).reverseCommission("pi_sub", 2250, 4500);
     }
 
     @Test

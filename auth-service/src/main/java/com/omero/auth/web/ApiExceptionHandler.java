@@ -30,6 +30,22 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(PlanNotAvailableException.class)
+    public ResponseEntity<Map<String, Object>> planNotAvailable(PlanNotAvailableException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "success", false,
+                "message", "Plan not available yet"
+        ));
+    }
+
+    @ExceptionHandler(RefundNotAvailableException.class)
+    public ResponseEntity<Map<String, Object>> refundNotAvailable(RefundNotAvailableException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "success", false,
+                "message", "Refund not available"
+        ));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> badRequest(IllegalArgumentException ex) {
         String msg = safeClientMessage(ex.getMessage());

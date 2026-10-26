@@ -3,6 +3,7 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 COPY pom.xml .
 COPY auth-service/pom.xml auth-service/pom.xml
+COPY channels-service/pom.xml channels-service/pom.xml
 COPY notification-service/pom.xml notification-service/pom.xml
 COPY subscription-service/pom.xml subscription-service/pom.xml
 RUN mvn -q -B -pl auth-service -am dependency:go-offline

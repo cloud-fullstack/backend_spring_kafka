@@ -1,12 +1,22 @@
 package com.omero.auth.service;
 
 import com.omero.auth.entity.BillingAccount;
+import com.omero.auth.entity.StripeSubscription;
+import com.omero.auth.entity.SubscriptionPlan;
+import com.omero.auth.entity.Tenant;
+import com.omero.auth.entity.TenantAddon;
 import com.omero.auth.entity.User;
 import com.omero.auth.repository.BillingAccountRepository;
+import com.omero.auth.repository.StripeSubscriptionRepository;
+import com.omero.auth.repository.SubscriptionPlanRepository;
+import com.omero.auth.repository.TenantAddonRepository;
+import com.omero.auth.repository.TenantRepository;
 import com.omero.auth.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -16,12 +26,32 @@ import java.util.UUID;
 @Service
 public class BillingAccountService {
 
+    private static final int DEMO_DAYS = 7;
+    private static final int DEMO_DAILY_CONV = 20;
+
     private final BillingAccountRepository accounts;
     private final UserRepository users;
+    private final TenantRepository tenants;
+    private final SubscriptionPlanRepository plans;
+    private final StripeSubscriptionRepository stripeSubscriptions;
+    private final TenantAddonRepository tenantAddons;
+    private final String lemonPortalUrl;
 
-    public BillingAccountService(BillingAccountRepository accounts, UserRepository users) {
+    public BillingAccountService(
+            BillingAccountRepository accounts,
+            UserRepository users,
+            TenantRepository tenants,
+            SubscriptionPlanRepository plans,
+            StripeSubscriptionRepository stripeSubscriptions,
+            TenantAddonRepository tenantAddons,
+            @Value("${lemonsqueezy.customer-portal-url:}") String lemonPortalUrl) {
         this.accounts = accounts;
         this.users = users;
+        this.tenants = tenants;
+        this.plans = plans;
+        this.stripeSubscriptions = stripeSubscriptions;
+        this.tenantAddons = tenantAddons;
+        this.lemonPortalUrl = lemonPortalUrl == null ? "" : lemonPortalUrl.trim();
     }
 
     public User requireUser(UUID userId) {
@@ -49,10 +79,86 @@ public class BillingAccountService {
         rollMonth(a);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("planId", user.getPlanId());
+        m.put("email", user.getEmail());
         m.put("balanceCents", a.getBalanceCents());
         m.put("spendMonthCents", a.getSpendMonthCents());
         m.put("currency", "eur");
         m.put("exhausted", a.getBalanceCents() <= 0 && !"demo".equalsIgnoreCase(user.getPlanId()));
+        boolean demo = "demo".equalsIgnoreCase(user.getPlanId());
+        m.put("demoDailyLimit", DEMO_DAILY_CONV);
+        if (demo) {
+            Tenant t = tenants.findById(user.getTenantId()).orElse(null);
+            OffsetDateTime created = t != null && t.getCreatedAt() != null ? t.getCreatedAt() : user.getCreatedAt();
+            OffsetDateTime expires = created == null ? null : created.plusDays(DEMO_DAYS);
+            m.put("demoExpiresAt", expires);
+            boolean expired = expires != null && OffsetDateTime.now(ZoneOffset.UTC).isAfter(expires);
+            m.put("demoExpired", expired);
+        } else {
+            m.put("demoExpiresAt", null);
+            m.put("demoExpired", false);
+        }
+        m.put("subscription", subscriptionSnapshot(user.getTenantId(), user.getPlanId()));
+        return m;
+    }
+
+    private Map<String, Object> subscriptionSnapshot(UUID tenantId, String planId) {
+        Map<String, Object> sub = new LinkedHashMap<>();
+        sub.put("plan", planId);
+        Tenant t = tenants.findById(tenantId).orElse(null);
+        sub.put("status", t == null ? "" : t.getStatus());
+        StripeSubscription live = null;
+        for (StripeSubscription row : stripeSubscriptions.findByTenantId(tenantId)) {
+            if (row.getPlanCode() == null || row.getPlanCode().isBlank()) {
+                continue;
+            }
+            if (!"active".equalsIgnoreCase(row.getStatus())
+                    && !"trialing".equalsIgnoreCase(row.getStatus())
+                    && !"past_due".equalsIgnoreCase(row.getStatus())) {
+                continue;
+            }
+            if (live == null || (row.getEventAt() != null && live.getEventAt() != null
+                    && row.getEventAt().isAfter(live.getEventAt()))) {
+                live = row;
+            }
+        }
+        boolean canceling = live != null && live.isCancelAtPeriodEnd();
+        sub.put("cancelAtPeriodEnd", canceling);
+        OffsetDateTime ends = live == null ? null : (live.getCancelAt() != null ? live.getCancelAt() : live.getPeriodEnd());
+        sub.put("endsAt", ends);
+        java.util.List<String> addons = new java.util.ArrayList<>();
+        for (TenantAddon a : tenantAddons.findByTenantId(tenantId)) {
+            if ("active".equalsIgnoreCase(a.getStatus()) && a.getAddonCode() != null) {
+                addons.add(a.getAddonCode());
+            }
+        }
+        sub.put("addons", addons);
+        boolean lemon = t != null
+                && "active".equalsIgnoreCase(t.getStatus())
+                && t.getLemonSubscriptionUpdatedAt() != null
+                && !stripeSubscriptions.existsByTenantId(tenantId);
+        sub.put("provider", lemon ? "lemon" : "stripe");
+        if (lemon && !lemonPortalUrl.isBlank()) {
+            sub.put("portalUrl", lemonPortalUrl);
+        }
+        return sub;
+    }
+
+    public Map<String, Object> usage(UUID userId) {
+        User user = requireUser(userId);
+        SubscriptionPlan plan = plans.findByCodeIgnoreCase(user.getPlanId()).orElse(null);
+        int included = DEMO_DAILY_CONV;
+        if (plan != null && plan.getFeatures() != null && plan.getFeatures().get("chat_conversations") instanceof Number n) {
+            included = n.intValue();
+        }
+        OffsetDateTime resets = OffsetDateTime.now(ZoneOffset.UTC).plusMonths(1).withDayOfMonth(1)
+                .withHour(0).withMinute(0).withSecond(0).withNano(0);
+        Map<String, Object> conversations = new LinkedHashMap<>();
+        conversations.put("used", 0);
+        conversations.put("included", included);
+        conversations.put("resetsAt", resets);
+        conversations.put("forecastExhaustAt", null);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("conversations", conversations);
         return m;
     }
 

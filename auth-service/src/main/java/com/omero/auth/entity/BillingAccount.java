@@ -24,13 +24,13 @@ public class BillingAccount {
     @Column(name = "spend_month_cents", nullable = false)
     private long spendMonthCents;
 
-    @Column(name = "spend_month")
+    @Column(name = "spend_month", length = 7)
     private String spendMonth;
 
     @Column(name = "stripe_customer_id")
     private String stripeCustomerId;
 
-    @Column(name = "card_last4")
+    @Column(name = "card_last4", length = 4)
     private String cardLast4;
 
     @Column(name = "auto_recharge", nullable = false)

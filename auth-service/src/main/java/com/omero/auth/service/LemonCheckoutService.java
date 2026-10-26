@@ -8,6 +8,7 @@ import com.omero.auth.entity.User;
 import com.omero.auth.repository.SubscriptionPlanRepository;
 import com.omero.auth.repository.TenantRepository;
 import com.omero.auth.repository.UserRepository;
+import com.omero.auth.web.PlanNotAvailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -85,6 +86,9 @@ public class LemonCheckoutService {
         String code = planCode == null ? "" : planCode.trim();
         SubscriptionPlan plan = planRepository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid request"));
+        if (!plan.catalogAvailable() || plan.isAddon()) {
+            throw new PlanNotAvailableException();
+        }
         if (plan.getLemonVariantId() == null || plan.getLemonVariantId().isBlank()) {
             throw new IllegalArgumentException("Invalid request");
         }
@@ -143,5 +147,12 @@ public class LemonCheckoutService {
             log.warn("Lemon checkout failed: {}", e.getMessage());
             throw new IllegalStateException("Lemon Squeezy is not configured");
         }
+    }
+
+    public String customerPortalUrl() {
+        if (customerPortalUrl != null && !customerPortalUrl.isBlank()) {
+            return customerPortalUrl;
+        }
+        return frontendBase.replaceAll("/$", "") + "/dashboard?tab=billing";
     }
 }

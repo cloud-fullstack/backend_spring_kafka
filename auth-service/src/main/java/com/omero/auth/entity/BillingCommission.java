@@ -41,6 +41,15 @@ public class BillingCommission {
     @Column(name = "lemon_order_id", unique = true)
     private String lemonOrderId;
 
+    @Column(name = "stripe_invoice_id", unique = true)
+    private String stripeInvoiceId;
+
+    @Column(name = "stripe_payment_intent_id")
+    private String stripePaymentIntentId;
+
+    @Column(name = "reversed_amount", nullable = false)
+    private BigDecimal reversedAmount = BigDecimal.ZERO;
+
     private String status = "pending";
 
     @CreationTimestamp

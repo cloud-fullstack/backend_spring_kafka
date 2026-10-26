@@ -2,14 +2,20 @@ package com.omero.auth.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.omero.auth.entity.CreditPurchase;
+import com.omero.auth.repository.BillingCommissionRepository;
 import com.omero.auth.repository.CreditPurchaseRepository;
 import com.omero.auth.repository.StripeWebhookEventRepository;
+import com.omero.auth.repository.StripeInvoicePaymentRepository;
+import com.omero.auth.repository.SubscriptionRefundRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Service
@@ -20,16 +26,28 @@ public class StripeWebhookService {
     private final StripeWebhookEventRepository events;
     private final CreditPurchaseRepository purchases;
     private final BillingAccountService accounts;
+    private final SubscriptionStateService subscriptions;
+    private final SubscriptionRefundRepository subscriptionRefunds;
+    private final BillingCommissionRepository commissions;
+    private final StripeInvoicePaymentRepository invoicePayments;
     private final boolean testMode;
 
     public StripeWebhookService(
             StripeWebhookEventRepository events,
             CreditPurchaseRepository purchases,
             BillingAccountService accounts,
+            SubscriptionStateService subscriptions,
+            SubscriptionRefundRepository subscriptionRefunds,
+            BillingCommissionRepository commissions,
+            StripeInvoicePaymentRepository invoicePayments,
             @Value("${stripe.test-mode:true}") boolean testMode) {
         this.events = events;
         this.purchases = purchases;
         this.accounts = accounts;
+        this.subscriptions = subscriptions;
+        this.subscriptionRefunds = subscriptionRefunds;
+        this.commissions = commissions;
+        this.invoicePayments = invoicePayments;
         this.testMode = testMode;
     }
 
@@ -52,9 +70,11 @@ public class StripeWebhookService {
             return;
         }
         JsonNode obj = root.path("data").path("object");
+        OffsetDateTime at = eventAt(root);
         switch (type) {
             case "checkout.session.completed" -> {
                 recordPurchase(obj);
+                rememberCustomer(obj);
                 if ("paid".equals(text(obj.path("payment_status")))) {
                     creditOnce(obj);
                 }
@@ -67,21 +87,28 @@ public class StripeWebhookService {
                 recordPurchase(obj);
                 markFailed(obj);
             }
-            case "charge.refunded" -> reverse(
-                    text(obj.path("payment_intent")),
-                    obj.path("amount_refunded").asLong(0),
-                    true,
-                    "refunded");
+            case "charge.refunded" -> {
+                String pi = text(obj.path("payment_intent"));
+                long refunded = obj.path("amount_refunded").asLong(0);
+                long charged = obj.path("amount").asLong(0);
+                subscriptions.reverseCommission(pi, refunded, charged > 0 ? charged : refunded);
+                reverse(pi, refunded, true, "refunded", at);
+            }
             case "charge.dispute.created" -> reverse(
                     text(obj.path("payment_intent")),
                     obj.path("amount").asLong(0),
                     false,
-                    "disputed");
+                    "disputed",
+                    at);
             case "charge.dispute.closed" -> {
                 if ("won".equals(text(obj.path("status")))) {
-                    restoreWon(text(obj.path("payment_intent")), obj.path("amount").asLong(0));
+                    restoreWon(text(obj.path("payment_intent")), obj.path("amount").asLong(0), at);
                 }
             }
+            case "customer.subscription.created", "customer.subscription.updated" ->
+                    subscriptions.applyStripeObject(obj, at, false);
+            case "customer.subscription.deleted" -> subscriptions.applyStripeObject(obj, at, true);
+            case "invoice.paid" -> subscriptions.accrueStripeInvoice(obj);
             default -> { }
         }
     }
@@ -135,13 +162,21 @@ public class StripeWebhookService {
         }
     }
 
-    private void reverse(String paymentIntentId, long amount, boolean cumulative, String finalStatus) {
+    private void reverse(
+            String paymentIntentId, long amount, boolean cumulative, String finalStatus, OffsetDateTime eventAt) {
         if (paymentIntentId == null || paymentIntentId.isBlank() || amount <= 0) {
             return;
         }
         CreditPurchase row = purchases.findByPaymentIntentId(paymentIntentId).orElse(null);
         if (row == null) {
-            throw new IllegalStateException("Stripe reverse before purchase: payment_intent=" + paymentIntentId);
+            boolean subscriptionCharge = subscriptionRefunds.existsByPaymentIntentId(paymentIntentId)
+                    || commissions.findByStripePaymentIntentId(paymentIntentId).isPresent()
+                    || invoicePayments.existsByPaymentIntentId(paymentIntentId);
+            if (!subscriptionCharge && isRecent(eventAt)) {
+                throw new IllegalStateException("Stripe reverse before purchase: payment_intent=" + paymentIntentId);
+            }
+            log.info("Stripe {} without credit purchase payment_intent={}", finalStatus, paymentIntentId);
+            return;
         }
         if ("pending".equals(row.getStatus()) || "failed".equals(row.getStatus())) {
             row.setStatus(finalStatus);
@@ -169,13 +204,20 @@ public class StripeWebhookService {
         accounts.addCredits(row.getTenantId(), -delta);
     }
 
-    private void restoreWon(String paymentIntentId, long amount) {
+    private void restoreWon(String paymentIntentId, long amount, OffsetDateTime eventAt) {
         if (paymentIntentId == null || paymentIntentId.isBlank() || amount <= 0) {
             return;
         }
         CreditPurchase row = purchases.findByPaymentIntentId(paymentIntentId).orElse(null);
         if (row == null) {
-            throw new IllegalStateException("Stripe restore before purchase: payment_intent=" + paymentIntentId);
+            boolean subscriptionCharge = subscriptionRefunds.existsByPaymentIntentId(paymentIntentId)
+                    || commissions.findByStripePaymentIntentId(paymentIntentId).isPresent()
+                    || invoicePayments.existsByPaymentIntentId(paymentIntentId);
+            if (!subscriptionCharge && isRecent(eventAt)) {
+                throw new IllegalStateException("Stripe restore before purchase: payment_intent=" + paymentIntentId);
+            }
+            log.info("Stripe dispute won without credit purchase payment_intent={}", paymentIntentId);
+            return;
         }
         long total = row.getAmountTotalCents();
         if (total <= 0 || row.getReversedCents() <= 0) {
@@ -192,6 +234,33 @@ public class StripeWebhookService {
         }
         purchases.save(row);
         accounts.addCredits(row.getTenantId(), delta);
+    }
+
+    private void rememberCustomer(JsonNode session) {
+        String tenantRaw = text(session.path("metadata").path("tenant_id"));
+        if (tenantRaw.isBlank()) {
+            return;
+        }
+        try {
+            accounts.setStripeCustomerIfAbsent(UUID.fromString(tenantRaw), text(session.path("customer")));
+        } catch (IllegalArgumentException ignored) {
+            /* invalid tenant */
+        }
+    }
+
+    private static boolean isRecent(OffsetDateTime eventAt) {
+        if (eventAt == null) {
+            return false;
+        }
+        return eventAt.isAfter(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+    }
+
+    private static OffsetDateTime eventAt(JsonNode root) {
+        long created = root.path("created").asLong(0);
+        if (created <= 0) {
+            return OffsetDateTime.now(ZoneOffset.UTC);
+        }
+        return Instant.ofEpochSecond(created).atOffset(ZoneOffset.UTC);
     }
 
     private static String text(JsonNode n) {
