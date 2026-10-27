@@ -2,8 +2,9 @@
 -- Hibernate ddl-auto=validate: se manca una colonna (reset_token, google_id, …)
 -- o la tabella resellers, lo Spring non parte.
 --
--- DEV = omero_db. PROD Spring = telemaco_db (stesso schema billing/Stripe, per ora).
--- telemaco_db resta anche il DB del demo LLM. Le tabelle Stripe si divideranno in futuro.
+-- DEV = omero_db (Spring + channels DEV). PROD = telemaco_db (LLM + Spring/channels PROD).
+-- Secret: omero-*-secrets → omero_db; telemaco-*-secrets → telemaco_db.
+-- Applicazione in transazione: vedi header di backend_llm/sql/widget_clients_env.sql.
 -- Una tantum, come postgres:
 --   kubectl exec -n telemaco-ns postgres-0 -- \
 --     psql -U postgres -c "CREATE DATABASE omero_db OWNER postgres;"
