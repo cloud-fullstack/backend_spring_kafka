@@ -31,6 +31,7 @@ class StripeCheckoutServiceTest {
     @Mock SubscriptionStateService subscriptions;
     @Mock LemonCheckoutService lemonCheckout;
     @Mock StripeApi stripeApi;
+    @Mock CancellationNoticeService cancellationNotices;
 
     private StripeCheckoutService svc;
     private final UUID userId = UUID.fromString("22222222-2222-2222-2222-222222222222");
@@ -40,7 +41,7 @@ class StripeCheckoutServiceTest {
     void setUp() {
         svc = new StripeCheckoutService(
                 accounts, tenants, tenantAddons, plans, subscriptions, lemonCheckout, stripeApi,
-                "txcd_10105002", "https://omero.dev");
+                cancellationNotices, "txcd_10105002", "https://omero.dev");
     }
 
     @Test

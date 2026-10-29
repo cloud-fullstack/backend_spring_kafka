@@ -157,10 +157,12 @@ public class SubscriptionStateService {
             return;
         }
         JsonNode live = null;
-        try {
-            live = stripeApi.get("/v1/subscriptions/" + subId);
-        } catch (RuntimeException e) {
-            log.warn("Stripe GET subscription {} failed, using webhook payload", subId);
+        if (!deleted) {
+            try {
+                live = stripeApi.get("/v1/subscriptions/" + subId);
+            } catch (RuntimeException e) {
+                log.warn("Stripe GET subscription {} failed, using webhook payload", subId);
+            }
         }
         boolean fromLive = live != null && !text(live.path("id")).isBlank();
         if (fromLive) {
@@ -527,7 +529,7 @@ public class SubscriptionStateService {
         return text(item.path("pricing").path("price_details").path("price"));
     }
 
-    static OffsetDateTime periodEnd(JsonNode sub) {
+    public static OffsetDateTime periodEnd(JsonNode sub) {
         long end = 0;
         JsonNode items = sub.path("items").path("data");
         if (items.isArray()) {

@@ -221,6 +221,40 @@ public class ChannelEntitlementClient {
         }
     }
 
+    public void purgeOperationalData(UUID tenantId) {
+        if (tenantId == null) {
+            return;
+        }
+        if (!url.isBlank()) {
+            try {
+                HttpHeaders h = new HttpHeaders();
+                h.setContentType(MediaType.APPLICATION_JSON);
+                h.set("X-Internal-Token", token);
+                http.postForEntity(
+                        url.replaceAll("/$", "") + "/internal/whatsapp/purge",
+                        new HttpEntity<>(Map.of("tenantId", tenantId.toString()), h),
+                        Void.class);
+            } catch (Exception e) {
+                log.warn("channels purge failed tenant={}", tenantId);
+            }
+        }
+        if (!llmUrl.isBlank() && Set.of("dev", "prod").contains(billingEnv)) {
+            try {
+                HttpHeaders h = new HttpHeaders();
+                h.setContentType(MediaType.APPLICATION_JSON);
+                h.set("X-Internal-Token", llmToken);
+                http.postForEntity(
+                        llmUrl.replaceAll("/$", "") + "/internal/billing/purge-tenant",
+                        new HttpEntity<>(Map.of(
+                                "tenantId", tenantId.toString(),
+                                "env", billingEnv), h),
+                        Void.class);
+            } catch (Exception e) {
+                log.warn("llm tenant purge failed tenant={}", tenantId);
+            }
+        }
+    }
+
     private void syncWidget(UUID tenantId, String planCode, String tenantStatus) {
         if (tenantId == null || llmUrl.isBlank()) {
             return;

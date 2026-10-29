@@ -26,7 +26,6 @@ import java.util.UUID;
 @Service
 public class BillingAccountService {
 
-    private static final int DEMO_DAYS = 7;
     private static final int DEMO_DAILY_CONV = 20;
 
     private final BillingAccountRepository accounts;
@@ -36,6 +35,7 @@ public class BillingAccountService {
     private final StripeSubscriptionRepository stripeSubscriptions;
     private final TenantAddonRepository tenantAddons;
     private final String lemonPortalUrl;
+    private final int demoDays;
 
     public BillingAccountService(
             BillingAccountRepository accounts,
@@ -44,7 +44,8 @@ public class BillingAccountService {
             SubscriptionPlanRepository plans,
             StripeSubscriptionRepository stripeSubscriptions,
             TenantAddonRepository tenantAddons,
-            @Value("${lemonsqueezy.customer-portal-url:}") String lemonPortalUrl) {
+            @Value("${lemonsqueezy.customer-portal-url:}") String lemonPortalUrl,
+            @Value("${billing.demo-days:3}") int demoDays) {
         this.accounts = accounts;
         this.users = users;
         this.tenants = tenants;
@@ -52,6 +53,7 @@ public class BillingAccountService {
         this.stripeSubscriptions = stripeSubscriptions;
         this.tenantAddons = tenantAddons;
         this.lemonPortalUrl = lemonPortalUrl == null ? "" : lemonPortalUrl.trim();
+        this.demoDays = Math.max(1, demoDays);
     }
 
     public User requireUser(UUID userId) {
@@ -89,11 +91,13 @@ public class BillingAccountService {
         if (demo) {
             Tenant t = tenants.findById(user.getTenantId()).orElse(null);
             OffsetDateTime created = t != null && t.getCreatedAt() != null ? t.getCreatedAt() : user.getCreatedAt();
-            OffsetDateTime expires = created == null ? null : created.plusDays(DEMO_DAYS);
+            OffsetDateTime expires = created == null ? null : created.plusDays(demoDays);
+            m.put("demoStartedAt", created);
             m.put("demoExpiresAt", expires);
             boolean expired = expires != null && OffsetDateTime.now(ZoneOffset.UTC).isAfter(expires);
             m.put("demoExpired", expired);
         } else {
+            m.put("demoStartedAt", null);
             m.put("demoExpiresAt", null);
             m.put("demoExpired", false);
         }

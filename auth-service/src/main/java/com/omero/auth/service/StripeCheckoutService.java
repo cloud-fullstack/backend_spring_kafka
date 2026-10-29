@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -37,6 +38,7 @@ public class StripeCheckoutService {
     private final SubscriptionStateService subscriptions;
     private final LemonCheckoutService lemonCheckout;
     private final StripeApi stripeApi;
+    private final CancellationNoticeService cancellationNotices;
     private final String taxCode;
     private final String frontendBase;
 
@@ -48,6 +50,7 @@ public class StripeCheckoutService {
             SubscriptionStateService subscriptions,
             LemonCheckoutService lemonCheckout,
             StripeApi stripeApi,
+            CancellationNoticeService cancellationNotices,
             @Value("${stripe.credits-tax-code:txcd_10105002}") String taxCode,
             @Value("${app.frontend-base-url}") String frontendBase) {
         this.accounts = accounts;
@@ -57,6 +60,7 @@ public class StripeCheckoutService {
         this.subscriptions = subscriptions;
         this.lemonCheckout = lemonCheckout;
         this.stripeApi = stripeApi;
+        this.cancellationNotices = cancellationNotices;
         this.taxCode = taxCode;
         this.frontendBase = frontendBase;
     }
@@ -139,10 +143,17 @@ public class StripeCheckoutService {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("cancel_at_period_end", "true");
         form.add("cancellation_details[comment]", reason == null ? "" : reason.strip());
-        stripeApi.post("/v1/subscriptions/" + sub.getSubscriptionId(), form, null);
+        JsonNode updated = stripeApi.post("/v1/subscriptions/" + sub.getSubscriptionId(), form, null);
+        OffsetDateTime endsAt = SubscriptionStateService.periodEnd(updated);
+        if (endsAt == null) {
+            endsAt = sub.getPeriodEnd();
+        } else {
+            sub.setPeriodEnd(endsAt);
+        }
+        cancellationNotices.confirmScheduled(user, endsAt);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cancelAtPeriodEnd", true);
-        out.put("endsAt", sub.getPeriodEnd() == null ? null : sub.getPeriodEnd().toString());
+        out.put("endsAt", endsAt == null ? null : endsAt.toString());
         return out;
     }
 

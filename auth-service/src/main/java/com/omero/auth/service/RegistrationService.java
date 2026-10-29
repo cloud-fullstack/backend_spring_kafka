@@ -61,8 +61,12 @@ public class RegistrationService {
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new IllegalArgumentException("Email already registered");
         }
-        String vertical = Optional.ofNullable(request.getVertical()).orElse("").trim().toLowerCase(Locale.ROOT);
-        if (vertical.isBlank() || !verticalRepository.existsByCodeAndActiveTrue(vertical)) {
+        String verticalRaw = Optional.ofNullable(request.getVertical()).orElse("").trim();
+        if (verticalRaw.isBlank()) {
+            throw new IllegalArgumentException("Invalid vertical");
+        }
+        String vertical = TenantVerticals.normalizeVertical(verticalRaw);
+        if (!verticalRepository.existsByCodeAndActiveTrue(vertical)) {
             throw new IllegalArgumentException("Invalid vertical");
         }
         String country = Optional.ofNullable(request.getCountry()).orElse("").trim().toUpperCase(Locale.ROOT);
@@ -70,7 +74,12 @@ public class RegistrationService {
             throw new IllegalArgumentException("Invalid country");
         }
 
-        Tenant tenant = newDemoTenant(email, request.getCompanyName(), vertical, country);
+        Tenant tenant = newDemoTenant(
+                email,
+                request.getCompanyName(),
+                vertical,
+                TenantVerticals.normalizeBusinessType(verticalRaw),
+                country);
         tenant.setCompanyName(request.getCompanyName());
         tenant.setVatNumber(request.getVatNumber());
         attributeReseller(tenant, request.getReferralCode());
@@ -138,7 +147,7 @@ public class RegistrationService {
             throw new SecurityException("Invalid credentials");
         }
         String email = normalizeEmail(socialUser.getEmail());
-        Tenant tenant = newDemoTenant(email, email, null, null);
+        Tenant tenant = newDemoTenant(email, email, null, null, null);
         tenant = tenantRepository.save(tenant);
 
         User user = new User();
@@ -165,13 +174,18 @@ public class RegistrationService {
         if (user.getTenantId() == null) {
             throw new IllegalArgumentException("Invalid request");
         }
-        String vertical = Optional.ofNullable(verticalRaw).orElse("").trim().toLowerCase(Locale.ROOT);
-        if (vertical.isBlank() || !verticalRepository.existsByCodeAndActiveTrue(vertical)) {
+        String raw = Optional.ofNullable(verticalRaw).orElse("").trim();
+        if (raw.isBlank()) {
+            throw new IllegalArgumentException("Invalid vertical");
+        }
+        String vertical = TenantVerticals.normalizeVertical(raw);
+        if (!verticalRepository.existsByCodeAndActiveTrue(vertical)) {
             throw new IllegalArgumentException("Invalid vertical");
         }
         Tenant tenant = tenantRepository.findById(user.getTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid request"));
         tenant.setVertical(vertical);
+        tenant.setBusinessType(TenantVerticals.normalizeBusinessType(raw));
         if (companyName != null && !companyName.isBlank()) {
             String name = companyName.trim();
             tenant.setCompanyName(name);
@@ -182,12 +196,13 @@ public class RegistrationService {
         tenantRepository.save(tenant);
     }
 
-    private Tenant newDemoTenant(String email, String name, String vertical, String country) {
+    private Tenant newDemoTenant(String email, String name, String vertical, String businessType, String country) {
         Tenant tenant = new Tenant();
         tenant.setName(Optional.ofNullable(name).filter(s -> !s.isBlank()).orElse(email));
         tenant.setEmail(email);
         tenant.setStatus("demo");
         tenant.setVertical(vertical);
+        tenant.setBusinessType(businessType);
         tenant.setCountry(country);
         tenant.setLastSeenAt(OffsetDateTime.now());
         return tenant;

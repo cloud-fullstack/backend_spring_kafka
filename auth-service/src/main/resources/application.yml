@@ -13,6 +13,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:}
   jpa:
     hibernate:
+      # Solo omero_db / telemaco_db. feaci: script SQL a mano, mai ddl-auto:update.
       ddl-auto: validate
     open-in-view: false
     properties:
@@ -87,6 +88,7 @@ llm:
 
 billing:
   plans-provider: ${BILLING_PLANS_PROVIDER:stripe}
+  demo-days: ${DEMO_DAYS:3}
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
@@ -96,6 +98,17 @@ stripe:
   # impostare anche lì 2026-04-22.dahlia (piani, cancellazione a fine periodo, tax code MP).
   api-version: ${STRIPE_API_VERSION:2026-04-22.dahlia}
   credits-tax-code: ${STRIPE_CREDITS_TAX_CODE:txcd_10105002}
+
+# Database feaci (programma Partner). Vuoto = bean assente (sviluppo senza feaci).
+# Non c’è flyway-core: niente spring.flyway.* e niente secondo bean Flyway.
+# Secret: PARTNER_DATASOURCE_URL / USERNAME / PASSWORD.
+# Oggi lo Spring pubblico è omero-subscriptions-secrets (anche telemaco.app).
+# Dopo lo split: telemaco-subscriptions-secrets in PROD; sul DEV lasciare vuoto.
+partner:
+  datasource:
+    url: ${PARTNER_DATASOURCE_URL:}
+    username: ${PARTNER_DATASOURCE_USERNAME:partner_app}
+    password: ${PARTNER_DATASOURCE_PASSWORD:}
 
 logging:
   level:

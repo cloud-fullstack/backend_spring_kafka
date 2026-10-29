@@ -22,6 +22,10 @@ public class Tenant {
     @Column(name = "vertical")
     private String vertical;
 
+    /** LLM handler code ({@code business_types}): doctor, lab, lawyer, pizzeria, bnb, ecommerce, vehicle. */
+    @Column(name = "business_type")
+    private String businessType;
+
     @Column(name = "company_name")
     private String companyName;
 

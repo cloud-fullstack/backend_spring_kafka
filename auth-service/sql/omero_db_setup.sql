@@ -2,8 +2,8 @@
 -- Hibernate ddl-auto=validate: se manca una colonna (reset_token, google_id, …)
 -- o la tabella resellers, lo Spring non parte.
 --
--- DEV = omero_db (Spring + channels DEV). PROD = telemaco_db (LLM + Spring/channels PROD).
--- Secret: omero-*-secrets → omero_db; telemaco-*-secrets → telemaco_db.
+-- DEV = omero_dev (Spring DEV su omero.dev). PROD = telemaco_db.
+-- Secret: omero-*-secrets → omero_dev dopo lo split; telemaco-*-secrets → telemaco_db.
 -- Applicazione in transazione: vedi header di backend_llm/sql/widget_clients_env.sql.
 -- Una tantum, come postgres:
 --   kubectl exec -n telemaco-ns postgres-0 -- \
@@ -91,6 +91,7 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS name                          VARCH
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email                         VARCHAR(255);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS status                        VARCHAR(20) DEFAULT 'demo';
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vertical                      VARCHAR(30) REFERENCES business_verticals(code);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type                 VARCHAR(30);
 -- createFromSocial salva vertical = NULL finché non arriva complete-profile
 ALTER TABLE tenants ALTER COLUMN vertical DROP NOT NULL;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name                  VARCHAR(200);

@@ -78,6 +78,53 @@ class RegistrationServiceTest {
         ArgumentCaptor<Tenant> cap = ArgumentCaptor.forClass(Tenant.class);
         verify(tenantRepository).save(cap.capture());
         assertEquals("demo", cap.getValue().getStatus());
+        assertEquals("medical", cap.getValue().getVertical());
+        assertEquals("doctor", cap.getValue().getBusinessType());
+    }
+
+    @Test
+    void hyphenatedVehicleRentalMapsToVerticalAndBusinessType() {
+        when(userRepository.existsByEmailIgnoreCase(any())).thenReturn(false);
+        when(verticalRepository.existsByCodeAndActiveTrue("vehicle_rental")).thenReturn(true);
+
+        RegisterRequest req = base();
+        req.setVertical("vehicle-rental");
+        service.registerCustomer(req);
+
+        ArgumentCaptor<Tenant> cap = ArgumentCaptor.forClass(Tenant.class);
+        verify(tenantRepository).save(cap.capture());
+        assertEquals("vehicle_rental", cap.getValue().getVertical());
+        assertEquals("vehicle", cap.getValue().getBusinessType());
+    }
+
+    @Test
+    void accountantMapsToLegalVerticalAndLawyerHandler() {
+        when(userRepository.existsByEmailIgnoreCase(any())).thenReturn(false);
+        when(verticalRepository.existsByCodeAndActiveTrue("legal")).thenReturn(true);
+
+        RegisterRequest req = base();
+        req.setVertical("accountant");
+        service.registerCustomer(req);
+
+        ArgumentCaptor<Tenant> cap = ArgumentCaptor.forClass(Tenant.class);
+        verify(tenantRepository).save(cap.capture());
+        assertEquals("legal", cap.getValue().getVertical());
+        assertEquals("lawyer", cap.getValue().getBusinessType());
+    }
+
+    @Test
+    void accountingKeepsAccountingVerticalAndLawyerHandler() {
+        when(userRepository.existsByEmailIgnoreCase(any())).thenReturn(false);
+        when(verticalRepository.existsByCodeAndActiveTrue("accounting")).thenReturn(true);
+
+        RegisterRequest req = base();
+        req.setVertical("accounting");
+        service.registerCustomer(req);
+
+        ArgumentCaptor<Tenant> cap = ArgumentCaptor.forClass(Tenant.class);
+        verify(tenantRepository).save(cap.capture());
+        assertEquals("accounting", cap.getValue().getVertical());
+        assertEquals("lawyer", cap.getValue().getBusinessType());
     }
 
     @Test
@@ -193,8 +240,28 @@ class RegistrationServiceTest {
         service.completeProfile(userId, "vehicle_rental", "Noleggio");
 
         assertEquals("vehicle_rental", tenant.getVertical());
+        assertEquals("vehicle", tenant.getBusinessType());
         assertEquals("Noleggio", tenant.getCompanyName());
         verify(tenantRepository).save(tenant);
+    }
+
+    @Test
+    void completeProfileNormalizesHyphenatedVehicleRental() {
+        UUID userId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        user.setTenantId(tenantId);
+        Tenant tenant = new Tenant();
+        tenant.setId(tenantId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(verticalRepository.existsByCodeAndActiveTrue("vehicle_rental")).thenReturn(true);
+
+        service.completeProfile(userId, "vehicle-rental", "Noleggio");
+
+        assertEquals("vehicle_rental", tenant.getVertical());
+        assertEquals("vehicle", tenant.getBusinessType());
     }
 
     @Test

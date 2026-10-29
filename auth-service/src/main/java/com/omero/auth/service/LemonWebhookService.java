@@ -104,6 +104,9 @@ public class LemonWebhookService {
 
     private Optional<User> resolveUser(JsonNode custom, JsonNode attrs) {
         String uid = text(custom.path("user_id"));
+        if (uid.isBlank()) {
+            uid = text(custom.path("userId"));
+        }
         if (!uid.isBlank()) {
             try {
                 return userRepository.findById(UUID.fromString(uid));
@@ -114,6 +117,12 @@ public class LemonWebhookService {
         String email = text(attrs.path("user_email"));
         if (email.isBlank()) {
             email = text(attrs.path("customer_email"));
+        }
+        if (email.isBlank()) {
+            email = text(custom.path("email"));
+        }
+        if (email.isBlank()) {
+            email = text(attrs.path("customer").path("email"));
         }
         if (!email.isBlank()) {
             return userRepository.findByEmailIgnoreCase(email.trim().toLowerCase(Locale.ROOT));

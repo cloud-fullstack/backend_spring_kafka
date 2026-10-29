@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface StripeSubscriptionRepository extends JpaRepository<StripeSubscription, String> {
     List<StripeSubscription> findByTenantId(UUID tenantId);
     boolean existsByTenantId(UUID tenantId);
+
+    List<StripeSubscription> findByCancelAtPeriodEndTrue();
 }

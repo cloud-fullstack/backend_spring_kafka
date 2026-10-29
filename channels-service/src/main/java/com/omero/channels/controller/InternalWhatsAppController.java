@@ -37,6 +37,15 @@ public class InternalWhatsAppController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/purge")
+    public ResponseEntity<Void> purge(
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @RequestBody Map<String, Object> body) {
+        InternalAuth.require(internalToken, token);
+        whatsapp.disconnect(WhatsAppService.parseUuid(String.valueOf(body.get("tenantId"))));
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/entitlements")
     public ResponseEntity<Void> entitlements(
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
