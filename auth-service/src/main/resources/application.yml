@@ -68,6 +68,7 @@ app:
   frontend-base-url: ${FRONTEND_BASE_URL:https://omero.dev}
   mail-from: ${SMTP_FROM:}
   password-reset-ttl-minutes: 30
+  registration-otp-ttl-minutes: 10
   support-email: ${SUPPORT_EMAIL:support@telemaco.app}
 
 lemonsqueezy:

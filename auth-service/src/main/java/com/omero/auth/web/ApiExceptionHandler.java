@@ -95,9 +95,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         }
         return switch (raw) {
             case "Passwords do not match",
+                 "Password too short",
                  "Email already registered",
                  "Invalid vertical",
                  "Invalid country",
+                 "Invalid code",
+                 "Too many attempts",
                  "Terms and conditions must be accepted" -> raw;
             default -> "Invalid request";
         };

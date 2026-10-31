@@ -164,6 +164,16 @@ class RegistrationServiceTest {
     }
 
     @Test
+    void sixCharPasswordIsAccepted() {
+        when(userRepository.existsByEmailIgnoreCase(any())).thenReturn(false);
+        when(verticalRepository.existsByCodeAndActiveTrue("medical")).thenReturn(true);
+        RegisterRequest req = base();
+        req.setPassword("secret");
+        req.setConfirmPassword("secret");
+        assertNotNull(service.registerCustomer(req).user());
+    }
+
+    @Test
     void passwordMismatchDoesNotCreateUser() {
         RegisterRequest req = base();
         req.setConfirmPassword("other");

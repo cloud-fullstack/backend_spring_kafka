@@ -55,7 +55,10 @@ public class RegistrationService {
     @Transactional
     public Result registerCustomer(RegisterRequest request) {
         String email = normalizeEmail(request.getEmail());
-        if (request.getPassword() == null || !request.getPassword().equals(request.getConfirmPassword())) {
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            throw new IllegalArgumentException("Password too short");
+        }
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("Passwords do not match");
         }
         if (userRepository.existsByEmailIgnoreCase(email)) {
