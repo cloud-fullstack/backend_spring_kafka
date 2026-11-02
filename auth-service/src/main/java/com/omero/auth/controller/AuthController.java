@@ -140,6 +140,9 @@ public class AuthController {
         if (!"google".equalsIgnoreCase(provider) && !"facebook".equalsIgnoreCase(provider)) {
             throw new IllegalArgumentException("Invalid request");
         }
+        // Campo unico "id_token": per google è il JWT di Google Identity Services;
+        // per facebook è l'access token opaco di FB.login (authResponse.accessToken).
+        // Il path /social/{provider} decide il validatore, non il nome del campo.
         String idToken = body == null ? null : body.get("id_token");
         SocialUser socialUser = socialTokenValidator.validate(provider, idToken);
         if (!socialUser.isEmailVerified()) {
@@ -185,6 +188,13 @@ public class AuthController {
         return uid;
     }
 
+    /**
+     * Asimmetria intenzionale, non un bug. Facebook non ha un flag email_verified affidabile
+     * (SocialTokenValidator): un account email/password esistente non si collega al primo login Facebook.
+     * Google: se googleId è null lo imposta (l'email è verificata da Google).
+     * Facebook: se facebookId è null, o è un altro sub, SecurityException. Si rientra solo se
+     * facebookId è già quello; un account nuovo nasce in createFromSocial, che setta facebookId alla creazione.
+     */
     private User linkExisting(String provider, User existing, SocialUser socialUser) {
         String sub = socialUser.getSub();
         if ("google".equalsIgnoreCase(provider)) {

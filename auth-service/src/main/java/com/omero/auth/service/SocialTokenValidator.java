@@ -85,6 +85,7 @@ public class SocialTokenValidator {
             return validateGoogleToken(idToken);
         }
         if ("facebook".equalsIgnoreCase(provider)) {
+            // idToken qui è l'access token Graph, non un JWT.
             return validateFacebookToken(idToken);
         }
         throw new IllegalArgumentException("Invalid request");
