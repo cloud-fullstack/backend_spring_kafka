@@ -21,16 +21,16 @@ spring:
         jdbc:
           time_zone: UTC
   mail:
-    host: ${SMTP_HOST:}
-    port: ${SMTP_PORT:587}
-    username: ${SMTP_USERNAME:}
+    host: smtp.migadu.com
+    port: 465
+    username: noreply@telemaco.app
     password: ${SMTP_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: true
-          starttls:
+          ssl:
             enable: true
+          auth: true
 
 # PlanAccessService: Caffeine maximumSize 10_000, expireAfterWrite 30s, keyed by JWT uid.
 # After payment or suspension, other replicas see the change within 30 seconds (evict() is local to this pod).
@@ -66,7 +66,7 @@ cors:
 
 app:
   frontend-base-url: ${FRONTEND_BASE_URL:https://omero.dev}
-  mail-from: ${SMTP_FROM:}
+  mail-from: ${SMTP_FROM:Telemaco <noreply@telemaco.app>}
   password-reset-ttl-minutes: 30
   registration-otp-ttl-minutes: 10
   support-email: ${SUPPORT_EMAIL:support@telemaco.app}
