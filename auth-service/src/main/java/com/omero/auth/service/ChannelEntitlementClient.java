@@ -73,6 +73,42 @@ public class ChannelEntitlementClient {
         }
     }
 
+    public void startTrialConfig(UUID tenantId, String sector) {
+        if (tenantId == null || llmUrl.isBlank()) {
+            return;
+        }
+        Runnable run = () -> postTrialConfig(tenantId, sector);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    run.run();
+                }
+            });
+        } else {
+            run.run();
+        }
+    }
+
+    void postTrialConfig(UUID tenantId, String sector) {
+        try {
+            HttpHeaders h = new HttpHeaders();
+            h.setContentType(MediaType.APPLICATION_JSON);
+            h.set("X-Internal-Token", llmToken);
+            java.util.HashMap<String, Object> body = new java.util.HashMap<>();
+            body.put("tenantId", tenantId.toString());
+            body.put("sector", sector == null ? "" : sector);
+            body.put("trialDays", 7);
+            body.put("env", billingEnv);
+            http.postForEntity(
+                    llmUrl.replaceAll("/$", "") + "/internal/tenant-config",
+                    new HttpEntity<>(body, h),
+                    Void.class);
+        } catch (Exception e) {
+            log.warn("llm trial config failed tenant={}", tenantId);
+        }
+    }
+
     public void syncAfterCommit(UUID tenantId, String planCode, String tenantStatus) {
         if (tenantId == null) {
             return;

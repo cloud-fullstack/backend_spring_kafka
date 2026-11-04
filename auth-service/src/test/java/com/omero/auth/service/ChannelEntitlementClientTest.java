@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -68,5 +69,31 @@ class ChannelEntitlementClientTest {
         client.activateAddon(tenantId, "whatsapp", "stripe");
 
         verify(addons, never()).save(any());
+    }
+
+    @Test
+    void startTrialConfigPostsToLlm() {
+        client = new ChannelEntitlementClient(
+                http, plans, addons, users, tenants, "", "", "http://llm", "dev", "tok");
+        client.startTrialConfig(tenantId, "vehicle");
+
+        ArgumentCaptor<String> url = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<org.springframework.http.HttpEntity> entity =
+                ArgumentCaptor.forClass(org.springframework.http.HttpEntity.class);
+        verify(http).postForEntity(url.capture(), entity.capture(), eq(Void.class));
+        assertEquals("http://llm/internal/tenant-config", url.getValue());
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body =
+                (java.util.Map<String, Object>) entity.getValue().getBody();
+        assertEquals(7, body.get("trialDays"));
+        assertEquals("vehicle", body.get("sector"));
+        assertEquals("dev", body.get("env"));
+        assertEquals("tok", entity.getValue().getHeaders().getFirst("X-Internal-Token"));
+    }
+
+    @Test
+    void startTrialConfigSkippedWithoutLlmUrl() {
+        client.startTrialConfig(tenantId, "vehicle");
+        verify(http, never()).postForEntity(any(), any(), any());
     }
 }

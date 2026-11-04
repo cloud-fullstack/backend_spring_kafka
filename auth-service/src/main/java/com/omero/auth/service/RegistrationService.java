@@ -36,18 +36,21 @@ public class RegistrationService {
     private final ResellerRepository resellerRepository;
     private final BusinessVerticalRepository verticalRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ChannelEntitlementClient entitlements;
 
     public RegistrationService(
             UserRepository userRepository,
             TenantRepository tenantRepository,
             ResellerRepository resellerRepository,
             BusinessVerticalRepository verticalRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            ChannelEntitlementClient entitlements) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.resellerRepository = resellerRepository;
         this.verticalRepository = verticalRepository;
         this.passwordEncoder = passwordEncoder;
+        this.entitlements = entitlements;
     }
 
     public record Result(User user, String referralCode) {}
@@ -100,6 +103,7 @@ public class RegistrationService {
         user.setReseller(false);
         user.setTenantAdmin(true);
         user = userRepository.save(user);
+        entitlements.startTrialConfig(tenant.getId(), tenant.getBusinessType());
         return new Result(user, null);
     }
 
@@ -197,6 +201,7 @@ public class RegistrationService {
             userRepository.save(user);
         }
         tenantRepository.save(tenant);
+        entitlements.startTrialConfig(tenant.getId(), tenant.getBusinessType());
     }
 
     private Tenant newDemoTenant(String email, String name, String vertical, String businessType, String country) {

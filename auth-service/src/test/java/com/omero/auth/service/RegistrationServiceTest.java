@@ -36,13 +36,15 @@ class RegistrationServiceTest {
     @Mock ResellerRepository resellerRepository;
     @Mock BusinessVerticalRepository verticalRepository;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock ChannelEntitlementClient entitlements;
 
     RegistrationService service;
 
     @BeforeEach
     void setUp() {
         service = new RegistrationService(
-                userRepository, tenantRepository, resellerRepository, verticalRepository, passwordEncoder);
+                userRepository, tenantRepository, resellerRepository, verticalRepository, passwordEncoder,
+                entitlements);
         lenient().when(passwordEncoder.encode(any())).thenReturn("hashed");
         lenient().when(userRepository.save(any(User.class))).thenAnswer(inv -> {
             User u = inv.getArgument(0);
@@ -80,6 +82,7 @@ class RegistrationServiceTest {
         assertEquals("demo", cap.getValue().getStatus());
         assertEquals("medical", cap.getValue().getVertical());
         assertEquals("doctor", cap.getValue().getBusinessType());
+        verify(entitlements).startTrialConfig(cap.getValue().getId(), "doctor");
     }
 
     @Test
@@ -253,6 +256,7 @@ class RegistrationServiceTest {
         assertEquals("vehicle", tenant.getBusinessType());
         assertEquals("Noleggio", tenant.getCompanyName());
         verify(tenantRepository).save(tenant);
+        verify(entitlements).startTrialConfig(tenantId, "vehicle");
     }
 
     @Test
