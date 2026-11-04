@@ -10,18 +10,22 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Accesso a {@code feaci}. Volutamente non è un {@code DataSource},
  * {@code JdbcOperations} o {@code TransactionManager}: l'auto-config di Spring Boot
- * continua a creare omero_db, Hibernate e il {@code JpaTransactionManager}.
+ * continua a creare il datasource primario ({@code SPRING_DATASOURCE_URL}),
+ * Hibernate e il {@code JpaTransactionManager}.
+ *
+ * <p>In cluster oggi il primario è {@code telemaco_db} (users, billing_accounts,
+ * stesso DB di {@code /api/auth/login}). Non un {@code omero_db} distinto.
  *
  * <p>Regole per {@code /api/reseller}:
  * <ul>
  *   <li>Transazioni su feaci: {@link #inTransaction}, non {@code @Transactional}
- *       (quel bound è il manager JPA di omero_db).</li>
- *   <li>{@code POST /applications} tocca due database e non è atomico: prima il partner
- *       {@code PENDING} su feaci, poi l'utente su omero_db; se il secondo passo fallisce,
- *       cancellare o marcare la riga su feaci.</li>
+ *       (quel bound è il manager JPA del primario).</li>
+ *   <li>{@code POST /applications} tocca due database e non è atomico: prima utente
+ *       e referral sul primario (cancellabili), poi reseller su feaci. Se feaci
+ *       fallisce si cancellano le righe sul primario. Non il contrario:
+ *       {@code consent_records} è append-only.</li>
  *   <li>Senza {@code PARTNER_DATASOURCE_URL} questo bean non esiste: i controller
- *       usano la stessa {@code @ConditionalOnExpression} oppure
- *       {@code ObjectProvider<PartnerDb>} e rispondono 503. Stesso 503 se feaci
+ *       usano {@code ObjectProvider<PartnerDb>} e rispondono 503. Stesso 503 se feaci
  *       è irraggiungibile (timeout Hikari 5 s).</li>
  * </ul>
  */

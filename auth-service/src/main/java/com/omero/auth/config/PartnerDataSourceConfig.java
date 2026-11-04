@@ -9,11 +9,12 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Secondo database {@code feaci} (programma Partner). Non registra bean di tipo
  * {@code DataSource}, {@code JdbcOperations} o {@code TransactionManager}, così
- * l'auto-config resta sul datasource principale (omero_db / telemaco_db).
+ * l'auto-config resta sul datasource primario ({@code SPRING_DATASOURCE_URL}:
+ * in cluster {@code telemaco_db}).
  *
  * <p>Parte solo se {@code PARTNER_DATASOURCE_URL} è non vuoto
  * ({@code @ConditionalOnProperty} tratterebbe anche la stringa vuota come presente).
- * Il pool Hikari è pigro: se feaci è giù, login e billing su omero_db restano su.
+ * Il pool Hikari è pigro: se feaci è giù, login e billing sul primario restano su.
  */
 @Configuration
 @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${partner.datasource.url:}')")

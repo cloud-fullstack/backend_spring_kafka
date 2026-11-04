@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/register", "/api/auth/register/**",
                                 "/api/auth/reseller/register",
+                                "/api/reseller/applications",
                                 "/api/auth/login", "/api/auth/social/*",
                                 "/api/auth/forgot-password", "/api/auth/reset-password",
                                 "/webhooks/lemonsqueezy", "/webhooks/stripe",

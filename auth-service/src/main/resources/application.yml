@@ -8,18 +8,22 @@ spring:
   application:
     name: auth-service
   datasource:
+    # Cluster: Secret SPRING_DATASOURCE_URL → telemaco_db (users, billing_accounts, login).
+    # Default locale solo per sviluppo senza Secret.
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/omero_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:}
   jpa:
     hibernate:
-      # Solo omero_db / telemaco_db. feaci: script SQL a mano, mai ddl-auto:update.
+      # Solo il primario. feaci: script SQL a mano, mai ddl-auto:update.
       ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
+  # OTP e reset: Migadu noreply@. Email programma partner: email_outbox su feaci,
+  # solo info@ o support@telemaco.app (Brevo). Non usare SMTP_FROM / noreply@ lì.
   mail:
     host: smtp.migadu.com
     port: 465
@@ -102,9 +106,9 @@ stripe:
 
 # Database feaci (programma Partner). Vuoto = bean assente (sviluppo senza feaci).
 # Non c’è flyway-core: niente spring.flyway.* e niente secondo bean Flyway.
-# Secret: PARTNER_DATASOURCE_URL / USERNAME / PASSWORD.
-# Oggi lo Spring pubblico è omero-subscriptions-secrets (anche telemaco.app).
-# Dopo lo split: telemaco-subscriptions-secrets in PROD; sul DEV lasciare vuoto.
+# PARTNER_DATASOURCE_URL / USERNAME / PASSWORD: oggi in omero-subscriptions-secrets
+# perché /api/reseller passa da omero-omero-subscriptions (anche telemaco.app).
+# Dopo lo split PROD: telemaco-subscriptions-secrets.
 partner:
   datasource:
     url: ${PARTNER_DATASOURCE_URL:}

@@ -2,6 +2,7 @@ package com.omero.auth.web;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(SecurityException.class)
     public ResponseEntity<Map<String, Object>> unauthorized(SecurityException ex) {
+        if ("Partner not approved".equals(ex.getMessage())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "message", "Partner not approved"
+            ));
+        }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                 "success", false,
                 "message", "Invalid credentials"
@@ -57,6 +64,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> unavailable(IllegalStateException ex) {
         log.warn("Unavailable");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                "success", false,
+                "message", "Service unavailable"
+        ));
+    }
+
+    @ExceptionHandler(DataAccessResourceFailureException.class)
+    public ResponseEntity<Map<String, Object>> dbUnavailable(DataAccessResourceFailureException ex) {
+        log.warn("Partner database unavailable");
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
                 "success", false,
                 "message", "Service unavailable"
@@ -101,7 +117,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                  "Invalid country",
                  "Invalid code",
                  "Too many attempts",
-                 "Terms and conditions must be accepted" -> raw;
+                 "Terms and conditions must be accepted",
+                 "Partner not found",
+                 "Partner program is not open",
+                 "Contract template not available",
+                 "Signature missing mandatory declarations" -> raw;
             default -> "Invalid request";
         };
     }
