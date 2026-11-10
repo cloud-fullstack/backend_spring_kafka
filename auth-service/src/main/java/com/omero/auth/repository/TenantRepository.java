@@ -9,4 +9,7 @@ import java.util.UUID;
 
 public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     List<Tenant> findByStatusAndSuspendedAtBefore(String status, OffsetDateTime cutoff);
+
+    List<Tenant> findByStatusInAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            List<String> statuses, OffsetDateTime fromInclusive, OffsetDateTime toExclusive);
 }

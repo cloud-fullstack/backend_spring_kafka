@@ -110,10 +110,43 @@ WHERE code IN ('gold','platinum');
 
 INSERT INTO subscription_plans (code, name, price, billing_period, sort_order, features) VALUES
  ('whatsapp_new_number', 'Numero WhatsApp nuovo', 0.00, 'monthly', 12,
-  '{"kind":"addon","status":"coming_soon","channel":"whatsapp"}')
+  '{"kind":"addon","status":"coming_soon","channel":"whatsapp"}'),
+ ('jolly', 'Jolly', 20.00, 'monthly', 13,
+  '{"kind":"addon","status":"coming_soon","channel":"whatsapp","text_only":true,"billing":"recurring"}'),
+ ('ical_integration', 'iCal BnB', 79.00, 'once', 14,
+  '{"kind":"addon","status":"available","billing":"one_off","sectors":["bnb-booking"]}'),
+ ('vehicle_api', 'API Rent Car & Van', 99.00, 'once', 15,
+  '{"kind":"addon","status":"coming_soon","billing":"one_off","sectors":["vehicle-rental"]}'),
+ ('whatsapp_number_setup', 'Setup Numero WhatsApp Business', 49.00, 'monthly', 53,
+  '{"kind":"addon","status":"available","billing":"one_off","hidden":true,"requires":"jolly"}')
 ON CONFLICT (code) DO NOTHING;
 
--- ddl-auto=validate: tenant_addons.source; subscription_refunds;
+CREATE TABLE IF NOT EXISTS whatsapp_number_requests (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         UUID NOT NULL REFERENCES tenants(id),
+    stripe_session_id VARCHAR(255),
+    company_name      VARCHAR(255) NOT NULL,
+    vat_number        VARCHAR(255),
+    address           TEXT         NOT NULL,
+    area_code         VARCHAR(100),
+    display_name      VARCHAR(255) NOT NULL,
+    terms_accepted    BOOLEAN      NOT NULL DEFAULT false,
+    status            VARCHAR(50)  NOT NULL DEFAULT 'pending_payment',
+    phone_number      VARCHAR(50),
+    created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+-- Idempotente se la tabella esisteva già senza queste colonne (CREATE IF NOT EXISTS non le aggiunge).
+ALTER TABLE whatsapp_number_requests ADD COLUMN IF NOT EXISTS stripe_session_id VARCHAR(255);
+ALTER TABLE whatsapp_number_requests ADD COLUMN IF NOT EXISTS terms_accepted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE whatsapp_number_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+CREATE INDEX IF NOT EXISTS idx_wa_num_req_tenant
+    ON whatsapp_number_requests(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_wa_num_req_session
+    ON whatsapp_number_requests (stripe_session_id)
+    WHERE stripe_session_id IS NOT NULL;
+
+-- ddl-auto=validate: tenant_addons.source; subscription_refunds; outbox_events; whatsapp_number_requests;
 -- billing_commissions.stripe_payment_intent_id, reversed_amount;
 -- stripe_subscriptions cancel_at_period_end, cancel_at, period_end, canceled_at;
 -- tenants.suspended_at. DEV, dopo il deploy della colonna source:
@@ -180,7 +213,21 @@ CREATE TABLE IF NOT EXISTS stripe_invoice_payments (
     tenant_id         UUID NOT NULL REFERENCES tenants(id)
 );
 
+CREATE TABLE IF NOT EXISTS outbox_events (
+    id            BIGSERIAL PRIMARY KEY,
+    aggregate_id  VARCHAR(64) NOT NULL,
+    event_type    VARCHAR(64) NOT NULL,
+    payload       JSONB NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    published_at  TIMESTAMPTZ,
+    attempts      INT NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ix_outbox_unpublished ON outbox_events(id) WHERE published_at IS NULL;
+
+-- Stripe Price IDs + sblocco gold/platinum: vedi sql/stripe_price_ids.sql
+-- (price_XXXXX da Dashboard; jsonb_set status=available su gold/platinum).
+
 -- Se SPRING_DATASOURCE_USERNAME è owner, i GRANT non servono.
 -- Altrimenti, sostituire owner con l'utente del Secret:
--- GRANT SELECT, INSERT, UPDATE ON billing_accounts, stripe_webhook_events, credit_purchases, plan_waitlist, stripe_subscriptions, subscription_refunds TO owner;
+-- GRANT SELECT, INSERT, UPDATE ON billing_accounts, stripe_webhook_events, credit_purchases, plan_waitlist, stripe_subscriptions, subscription_refunds, outbox_events, whatsapp_number_requests TO owner;
 -- GRANT SELECT, UPDATE ON subscription_plans TO owner;

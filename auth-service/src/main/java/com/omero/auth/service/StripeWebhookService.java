@@ -30,6 +30,8 @@ public class StripeWebhookService {
     private final SubscriptionRefundRepository subscriptionRefunds;
     private final BillingCommissionRepository commissions;
     private final StripeInvoicePaymentRepository invoicePayments;
+    private final ChannelEntitlementClient entitlements;
+    private final JollyCheckoutService jollyCheckout;
     private final boolean testMode;
 
     public StripeWebhookService(
@@ -40,6 +42,8 @@ public class StripeWebhookService {
             SubscriptionRefundRepository subscriptionRefunds,
             BillingCommissionRepository commissions,
             StripeInvoicePaymentRepository invoicePayments,
+            ChannelEntitlementClient entitlements,
+            JollyCheckoutService jollyCheckout,
             @Value("${stripe.test-mode:true}") boolean testMode) {
         this.events = events;
         this.purchases = purchases;
@@ -48,6 +52,8 @@ public class StripeWebhookService {
         this.subscriptionRefunds = subscriptionRefunds;
         this.commissions = commissions;
         this.invoicePayments = invoicePayments;
+        this.entitlements = entitlements;
+        this.jollyCheckout = jollyCheckout;
         this.testMode = testMode;
     }
 
@@ -73,15 +79,27 @@ public class StripeWebhookService {
         OffsetDateTime at = eventAt(root);
         switch (type) {
             case "checkout.session.completed" -> {
-                recordPurchase(obj);
                 rememberCustomer(obj);
-                if ("paid".equals(text(obj.path("payment_status")))) {
-                    creditOnce(obj);
+                if ("credits".equals(kind(obj))) {
+                    recordPurchase(obj);
+                    if ("paid".equals(text(obj.path("payment_status")))) {
+                        creditOnce(obj);
+                    }
+                } else if (oneOffKind(kind(obj)) && "paid".equals(text(obj.path("payment_status")))) {
+                    activateOneOff(obj);
+                } else if (jollyKind(kind(obj)) && "paid".equals(text(obj.path("payment_status")))) {
+                    activateJolly(obj);
                 }
             }
             case "checkout.session.async_payment_succeeded" -> {
-                recordPurchase(obj);
-                creditOnce(obj);
+                if ("credits".equals(kind(obj))) {
+                    recordPurchase(obj);
+                    creditOnce(obj);
+                } else if (oneOffKind(kind(obj))) {
+                    activateOneOff(obj);
+                } else if (jollyKind(kind(obj))) {
+                    activateJolly(obj);
+                }
             }
             case "checkout.session.async_payment_failed" -> {
                 recordPurchase(obj);
@@ -234,6 +252,92 @@ public class StripeWebhookService {
         }
         purchases.save(row);
         accounts.addCredits(row.getTenantId(), delta);
+    }
+
+    /**
+     * StripeWebhookService.activateOneOff  (kind=ical | ical_integration | vehicle_api)
+     *   → ChannelEntitlementClient.activateAddon  @Transactional
+     *       ├── addons.save(row)                  INSERT tenant_addons
+     *       └── outbox.enqueueFeature()           INSERT outbox_events  ← stessa TX
+     *   COMMIT ─────────────────────────────────────────────────────────────
+     *
+     * OutboxRelay.relay()  ogni 2 s  @Scheduled  @Transactional
+     *   ├── outbox.lockNextBatch()               SELECT FOR UPDATE SKIP LOCKED
+     *   ├── publisher.publish(event)             XADD telemacos:tenant:feature
+     *   └── event.markPublished()                UPDATE outbox_events
+     *
+     * redis_consumer.py  XREADGROUP
+     *   └── _handle_feature()
+     *         └── upsert_tenant_config(features.ical_integration = true)
+     *
+     * ical_sync_loop()  ogni 30 min
+     *   └── sync_tenant_icals() per ogni tenant con ical_integration=true
+     */
+    private void activateOneOff(JsonNode session) {
+        String tenantRaw = text(session.path("metadata").path("tenant_id"));
+        if (tenantRaw.isBlank()) {
+            return;
+        }
+        String code = text(session.path("metadata").path("plan_code"));
+        if (code.isBlank()) {
+            String k = kind(session);
+            code = "ical".equals(k) ? "ical_integration" : k;
+        }
+        if (code.isBlank()) {
+            return;
+        }
+        try {
+            entitlements.activateAddon(UUID.fromString(tenantRaw), code, "stripe");
+        } catch (IllegalArgumentException ignored) {
+            log.warn("Stripe one-off checkout without tenant_id session={}", text(session.path("id")));
+        }
+    }
+
+    private void activateJolly(JsonNode session) {
+        String tenantRaw = text(session.path("metadata").path("tenant_id"));
+        if (!tenantRaw.isBlank()) {
+            try {
+                entitlements.activateAddon(UUID.fromString(tenantRaw), "jolly", "stripe");
+            } catch (IllegalArgumentException ignored) {
+                log.warn("Stripe Jolly checkout without tenant_id session={}", text(session.path("id")));
+            }
+        }
+        if ("jolly_with_setup".equals(kind(session))
+                || !text(session.path("metadata").path("number_request_id")).isBlank()) {
+            onJollySetupCheckout(session);
+        }
+    }
+
+    private void onJollySetupCheckout(JsonNode session) {
+        String sessionId = text(session.path("id"));
+        String requestIdRaw = text(session.path("metadata").path("number_request_id"));
+        UUID requestId = null;
+        if (!requestIdRaw.isBlank()) {
+            try {
+                requestId = UUID.fromString(requestIdRaw);
+            } catch (IllegalArgumentException e) {
+                log.warn("jolly_with_setup: number_request_id non valido: {}", requestIdRaw);
+            }
+        }
+        if (requestId == null && sessionId.isBlank()) {
+            log.warn("jolly_with_setup: number_request_id e session id assenti");
+            return;
+        }
+        jollyCheckout.markRequested(requestId, sessionId);
+    }
+
+    private static boolean jollyKind(String kind) {
+        return "jolly".equals(kind) || "jolly_with_setup".equals(kind);
+    }
+
+    private static boolean oneOffKind(String kind) {
+        return "ical".equals(kind)
+                || "ical_integration".equals(kind)
+                || "vehicle_api".equals(kind);
+    }
+
+    private static String kind(JsonNode session) {
+        return text(session.path("metadata").path("kind"));
     }
 
     private void rememberCustomer(JsonNode session) {

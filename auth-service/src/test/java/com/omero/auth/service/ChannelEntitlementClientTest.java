@@ -31,13 +31,14 @@ class ChannelEntitlementClientTest {
     @Mock TenantAddonRepository addons;
     @Mock UserRepository users;
     @Mock TenantRepository tenants;
+    @Mock com.omero.auth.outbox.TenantOutbox outbox;
 
     private ChannelEntitlementClient client;
     private final UUID tenantId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @BeforeEach
     void setUp() {
-        client = new ChannelEntitlementClient(http, plans, addons, users, tenants, "", "", "", "dev", "");
+        client = new ChannelEntitlementClient(http, plans, addons, users, tenants, outbox, "", "", "", "dev", "");
     }
 
     @Test
@@ -72,9 +73,17 @@ class ChannelEntitlementClientTest {
     }
 
     @Test
+    void activateIcalWritesOutboxInSameCall() {
+        when(addons.findById(any())).thenReturn(Optional.empty());
+        client.activateAddon(tenantId, "ical_integration", "stripe");
+        verify(addons).save(any());
+        verify(outbox).enqueueFeature(tenantId, "ical_integration", true);
+    }
+
+    @Test
     void startTrialConfigPostsToLlm() {
         client = new ChannelEntitlementClient(
-                http, plans, addons, users, tenants, "", "", "http://llm", "dev", "tok");
+                http, plans, addons, users, tenants, outbox, "", "", "http://llm", "dev", "tok");
         client.startTrialConfig(tenantId, "vehicle");
 
         ArgumentCaptor<String> url = ArgumentCaptor.forClass(String.class);

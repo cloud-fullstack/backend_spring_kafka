@@ -45,6 +45,7 @@ class SubscriptionStateServiceTest {
     @Mock PlanAccessService planAccess;
     @Mock ChannelEntitlementClient entitlements;
     @Mock StripeApi stripeApi;
+    @Mock com.omero.auth.outbox.TenantOutbox outbox;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private SubscriptionStateService svc;
@@ -55,7 +56,8 @@ class SubscriptionStateServiceTest {
     @BeforeEach
     void setUp() {
         svc = new SubscriptionStateService(
-                users, tenants, plans, commissions, invoicePayments, stripeSubs, planAccess, entitlements, stripeApi);
+                users, tenants, plans, commissions, invoicePayments, stripeSubs, planAccess, entitlements, stripeApi,
+                outbox);
         lenient().when(stripeApi.get(any())).thenReturn(null);
         lenient().when(stripeSubs.findById(any())).thenAnswer(inv -> store.stream()
                 .filter(s -> s.getSubscriptionId().equals(inv.getArgument(0)))
@@ -216,6 +218,21 @@ class SubscriptionStateServiceTest {
         assertEquals("active", tenant.getStatus());
         assertEquals("bronze", user.getPlanId());
         assertEquals(null, tenant.getSuspendedAt());
+        verify(outbox).enqueuePaid(eq(tenantId), eq(""), eq("bronze"), eq(List.of("multilingual")), eq("stripe"));
+    }
+
+    @Test
+    void unlockedFeaturesAddsIcalWhenPlanHasFlag() {
+        SubscriptionPlan gold = plan("gold", false);
+        gold.setFeatures(Map.of("status", "available", "ical_integration", true));
+        when(plans.findByCodeIgnoreCase("gold")).thenReturn(Optional.of(gold));
+        assertEquals(List.of("multilingual", "ical_integration"), svc.unlockedFeatures("gold"));
+    }
+
+    @Test
+    void unlockedFeaturesStaysMultilingualByDefault() {
+        when(plans.findByCodeIgnoreCase("bronze")).thenReturn(Optional.of(plan("bronze", false)));
+        assertEquals(List.of("multilingual"), svc.unlockedFeatures("bronze"));
     }
 
     @Test

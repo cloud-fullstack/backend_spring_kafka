@@ -16,10 +16,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -129,13 +132,34 @@ public class BillingAccountService {
         sub.put("cancelAtPeriodEnd", canceling);
         OffsetDateTime ends = live == null ? null : (live.getCancelAt() != null ? live.getCancelAt() : live.getPeriodEnd());
         sub.put("endsAt", ends);
-        java.util.List<String> addons = new java.util.ArrayList<>();
+        sub.put("subscriptionId", live == null ? null : live.getSubscriptionId());
+        List<String> addons = new ArrayList<>();
         for (TenantAddon a : tenantAddons.findByTenantId(tenantId)) {
             if ("active".equalsIgnoreCase(a.getStatus()) && a.getAddonCode() != null) {
                 addons.add(a.getAddonCode());
             }
         }
         sub.put("addons", addons);
+        List<Map<String, Object>> items = new ArrayList<>();
+        BigDecimal next = BigDecimal.ZERO;
+        String currentCode = planId == null ? "" : planId.trim();
+        for (SubscriptionPlan p : plans.findAllByOrderBySortOrderAsc()) {
+            if (p.getCode() == null || "demo".equalsIgnoreCase(p.getCode())
+                    || "whatsapp_new_number".equalsIgnoreCase(p.getCode())
+                    || "whatsapp_number_setup".equalsIgnoreCase(p.getCode())) {
+                continue;
+            }
+            boolean addon = p.isAddon();
+            boolean opted = addon
+                    ? addons.stream().anyMatch(c -> c.equalsIgnoreCase(p.getCode()))
+                    : currentCode.equalsIgnoreCase(p.getCode());
+            items.add(lineItem(p, opted, opted ? "1" : "0", addon ? "addon" : "plan"));
+            if (opted && p.getPrice() != null && !p.isOneOff()) {
+                next = next.add(p.getPrice());
+            }
+        }
+        sub.put("items", items);
+        sub.put("nextAmount", next);
         boolean lemon = t != null
                 && "active".equalsIgnoreCase(t.getStatus())
                 && t.getLemonSubscriptionUpdatedAt() != null
@@ -145,6 +169,19 @@ public class BillingAccountService {
             sub.put("portalUrl", lemonPortalUrl);
         }
         return sub;
+    }
+
+    private static Map<String, Object> lineItem(SubscriptionPlan plan, boolean opted, String units, String kind) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("code", plan.getCode());
+        row.put("name", plan.getName());
+        row.put("kind", kind);
+        row.put("opted", opted);
+        row.put("units", units);
+        boolean monthly = opted && plan.getPrice() != null && !plan.isOneOff();
+        row.put("price", monthly ? plan.getPrice() : BigDecimal.ZERO);
+        row.put("oneOff", plan.isOneOff());
+        return row;
     }
 
     public Map<String, Object> usage(UUID userId) {

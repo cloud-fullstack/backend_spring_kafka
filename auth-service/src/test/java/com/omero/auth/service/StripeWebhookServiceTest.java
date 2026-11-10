@@ -36,6 +36,8 @@ class StripeWebhookServiceTest {
     @Mock SubscriptionRefundRepository subscriptionRefunds;
     @Mock BillingCommissionRepository commissions;
     @Mock StripeInvoicePaymentRepository invoicePayments;
+    @Mock ChannelEntitlementClient entitlements;
+    @Mock JollyCheckoutService jollyCheckout;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private StripeWebhookService testMode;
@@ -44,7 +46,8 @@ class StripeWebhookServiceTest {
     @BeforeEach
     void setUp() {
         testMode = new StripeWebhookService(
-                events, purchases, accounts, subscriptions, subscriptionRefunds, commissions, invoicePayments, true);
+                events, purchases, accounts, subscriptions, subscriptionRefunds, commissions, invoicePayments,
+                entitlements, jollyCheckout, true);
         lenient().when(subscriptionRefunds.existsByPaymentIntentId(anyString())).thenReturn(false);
         lenient().when(commissions.findByStripePaymentIntentId(anyString())).thenReturn(Optional.empty());
         lenient().when(invoicePayments.existsByPaymentIntentId(anyString())).thenReturn(false);
@@ -182,6 +185,68 @@ class StripeWebhookServiceTest {
                  "data":{"object":{"payment_intent":"pi_1","amount":3050,"amount_refunded":3050}}}
                 """));
         verify(accounts).addCredits(tenant, -1500);
+    }
+
+    @Test
+    void icalCheckoutActivatesAddon() throws Exception {
+        when(events.insertIfAbsent(any(), any())).thenReturn(1);
+        testMode.handle(mapper.readTree("""
+                {"id":"evt_ical","livemode":false,"type":"checkout.session.completed",
+                 "data":{"object":{"id":"cs_ical","payment_status":"paid","customer":"cus_1",
+                   "metadata":{"kind":"ical","tenant_id":"%s","plan_code":"ical_integration"}}}}
+                """.formatted(tenant)));
+        verify(entitlements).activateAddon(tenant, "ical_integration", "stripe");
+        verify(purchases, never()).upsertPending(any(), any(), any(), anyLong(), anyLong());
+    }
+
+    @Test
+    void vehicleApiCheckoutActivatesAddon() throws Exception {
+        when(events.insertIfAbsent(any(), any())).thenReturn(1);
+        testMode.handle(mapper.readTree("""
+                {"id":"evt_api","livemode":false,"type":"checkout.session.completed",
+                 "data":{"object":{"id":"cs_api","payment_status":"paid","customer":"cus_1",
+                   "metadata":{"kind":"vehicle_api","tenant_id":"%s","plan_code":"vehicle_api"}}}}
+                """.formatted(tenant)));
+        verify(entitlements).activateAddon(tenant, "vehicle_api", "stripe");
+        verify(purchases, never()).upsertPending(any(), any(), any(), anyLong(), anyLong());
+    }
+
+    @Test
+    void jollyCheckoutActivatesAddon() throws Exception {
+        when(events.insertIfAbsent(any(), any())).thenReturn(1);
+        testMode.handle(mapper.readTree("""
+                {"id":"evt_jolly","livemode":false,"type":"checkout.session.completed",
+                 "data":{"object":{"id":"cs_jolly","payment_status":"paid","customer":"cus_1",
+                   "metadata":{"kind":"jolly","tenant_id":"%s","plan_code":"jolly"}}}}
+                """.formatted(tenant)));
+        verify(entitlements).activateAddon(tenant, "jolly", "stripe");
+        verify(jollyCheckout, never()).markRequested(any(), any());
+        verify(purchases, never()).upsertPending(any(), any(), any(), anyLong(), anyLong());
+    }
+
+    @Test
+    void jollyWithSetupMarksNumberRequest() throws Exception {
+        when(events.insertIfAbsent(any(), any())).thenReturn(1);
+        UUID requestId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        testMode.handle(mapper.readTree("""
+                {"id":"evt_jolly_setup","livemode":false,"type":"checkout.session.completed",
+                 "data":{"object":{"id":"cs_jolly_setup","payment_status":"paid","customer":"cus_1",
+                   "metadata":{"kind":"jolly_with_setup","tenant_id":"%s","plan_code":"jolly",
+                     "number_request_id":"%s"}}}}
+                """.formatted(tenant, requestId)));
+        verify(entitlements).activateAddon(tenant, "jolly", "stripe");
+        verify(jollyCheckout).markRequested(requestId, "cs_jolly_setup");
+    }
+
+    @Test
+    void jollyWithSetupLooksUpBySessionWhenRequestIdMissing() throws Exception {
+        when(events.insertIfAbsent(any(), any())).thenReturn(1);
+        testMode.handle(mapper.readTree("""
+                {"id":"evt_jolly_setup2","livemode":false,"type":"checkout.session.completed",
+                 "data":{"object":{"id":"cs_jolly_setup","payment_status":"paid","customer":"cus_1",
+                   "metadata":{"kind":"jolly_with_setup","tenant_id":"%s","plan_code":"jolly"}}}}
+                """.formatted(tenant)));
+        verify(jollyCheckout).markRequested(null, "cs_jolly_setup");
     }
 
     private String session(String type, String paymentStatus, long amountTotal, long creditCents) {

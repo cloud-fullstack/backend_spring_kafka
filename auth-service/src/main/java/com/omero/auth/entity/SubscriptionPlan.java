@@ -56,6 +56,13 @@ public class SubscriptionPlan {
         return "addon".equalsIgnoreCase(features.get("kind").toString());
     }
 
+    public boolean isOneOff() {
+        if (features == null || features.get("billing") == null) {
+            return false;
+        }
+        return "one_off".equalsIgnoreCase(features.get("billing").toString());
+    }
+
     public java.util.List<String> requirementCodes() {
         if (features == null || features.get("requires") == null) {
             return java.util.List.of();

@@ -5,7 +5,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
-@SpringBootApplication(exclude = org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class)
+@SpringBootApplication(exclude = {
+        org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class,
+        org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration.class,
+        org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration.class
+})
 public class AuthServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(AuthServiceApplication.class, args);

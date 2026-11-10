@@ -15,7 +15,9 @@ import com.omero.auth.repository.TenantRepository;
 import com.omero.auth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.omero.auth.outbox.TenantOutbox;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.LinkedMultiValueMap;
@@ -29,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -56,6 +59,7 @@ public class SubscriptionStateService {
     private final PlanAccessService planAccess;
     private final ChannelEntitlementClient channelEntitlements;
     private final StripeApi stripeApi;
+    private final TenantOutbox outbox;
 
     public SubscriptionStateService(
             UserRepository users,
@@ -66,7 +70,8 @@ public class SubscriptionStateService {
             StripeSubscriptionRepository stripeSubscriptions,
             PlanAccessService planAccess,
             ChannelEntitlementClient channelEntitlements,
-            StripeApi stripeApi) {
+            StripeApi stripeApi,
+            TenantOutbox outbox) {
         this.users = users;
         this.tenants = tenants;
         this.plans = plans;
@@ -76,8 +81,10 @@ public class SubscriptionStateService {
         this.planAccess = planAccess;
         this.channelEntitlements = channelEntitlements;
         this.stripeApi = stripeApi;
+        this.outbox = outbox;
     }
 
+    @Transactional
     public void apply(
             User user,
             String planCode,
@@ -121,10 +128,21 @@ public class SubscriptionStateService {
                 if (activate) {
                     tenant.setStatus("active");
                     tenant.setSuspendedAt(null);
+                    if (!"active".equalsIgnoreCase(previous)) {
+                        outbox.enqueuePaid(
+                                tenant.getId(),
+                                tenant.getBusinessType() != null ? tenant.getBusinessType() : tenant.getVertical(),
+                                planCode,
+                                unlockedFeatures(planCode),
+                                provider == Provider.STRIPE ? "stripe" : "lemon");
+                    }
                 } else if (suspend) {
                     tenant.setStatus("suspended");
                     if (tenant.getSuspendedAt() == null) {
                         tenant.setSuspendedAt(OffsetDateTime.now(ZoneOffset.UTC));
+                    }
+                    if ("active".equalsIgnoreCase(previous)) {
+                        outbox.enqueueDeactivated(tenant.getId(), "suspended");
                     }
                 } else if (cancelPending) {
                     if (endsAt == null || !endsAt.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
@@ -310,6 +328,25 @@ public class SubscriptionStateService {
             commission.setStatus("reversed");
         }
         commissions.save(commission);
+    }
+
+    List<String> unlockedFeatures(String planCode) {
+        List<String> features = new ArrayList<>();
+        features.add("multilingual");
+        if (planCode == null || planCode.isBlank()) {
+            return features;
+        }
+        plans.findByCodeIgnoreCase(planCode).ifPresent(plan -> {
+            Map<String, Object> f = plan.getFeatures();
+            if (f == null) {
+                return;
+            }
+            Object raw = f.get("ical_integration");
+            if (Boolean.TRUE.equals(raw) || "true".equalsIgnoreCase(String.valueOf(raw))) {
+                features.add("ical_integration");
+            }
+        });
+        return features;
     }
 
     public Optional<StripeSubscription> livePlanSubscription(UUID tenantId) {

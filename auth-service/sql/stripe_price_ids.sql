@@ -1,0 +1,54 @@
+-- Promemoria: Price ID Stripe + sblocco checkout Gold/Platinum.
+-- Eseguire a mano su DEV (omero_db) e PROD (telemaco_db) DOPO aver copiato
+-- gli ID reali da Stripe Dashboard → Products → Prices (price_...).
+-- Non sostituire price_XXXXX con placeholder: checkout e unique index fallirebbero.
+--
+-- UPDATE subscription_plans SET stripe_price_id = 'price_XXXXX' WHERE code = 'bronze';
+-- UPDATE subscription_plans SET stripe_price_id = 'price_XXXXX' WHERE code = 'silver';
+-- UPDATE subscription_plans SET stripe_price_id = 'price_XXXXX' WHERE code = 'gold';
+-- UPDATE subscription_plans SET stripe_price_id = 'price_XXXXX' WHERE code = 'platinum';
+--
+-- -- Attiva gold e platinum per il checkout
+-- UPDATE subscription_plans
+-- SET features = jsonb_set(features, '{status}', '"available"')
+-- WHERE code IN ('gold','platinum');
+--
+-- -- Verifica
+-- SELECT code, stripe_price_id, features->>'status' as status
+-- FROM subscription_plans
+-- ORDER BY sort_order;
+--
+-- Righe già inserite su telemaco_db (ON CONFLICT DO NOTHING).
+-- UPDATE subscription_plans
+-- SET features = features || '{"channel":"whatsapp","text_only":true}'::jsonb
+-- WHERE code = 'jolly';
+-- UPDATE subscription_plans SET billing_period = 'once'
+-- WHERE code IN ('ical_integration','vehicle_api');
+--
+-- Catalogo addon (nessun Price ID inventato in git).
+--   jolly                   20 €/mese  POST /api/billing/jolly  { hasBusinessNumber: true }
+--   whatsapp_number_setup   49 € once  nascosto; add_invoice_item se hasBusinessNumber=false
+--   ical_integration        79 € once
+--   vehicle_api             99 € once
+--
+-- Finché jolly.stripe_price_id è NULL, createJollyCheckout usa price_data inline
+-- (€20 dal DB). Utile in test; prima del go-live la subscription deve essere
+-- legata a un Price catalogo Stripe (altrimenti non è un prodotto Dashboard).
+--
+-- -- Jolly recurring (incollare l'ID reale da Stripe Dashboard → Products → Prices)
+-- UPDATE subscription_plans
+-- SET stripe_price_id = 'price_XXXXX',
+--     features = jsonb_set(features, '{status}', '"available"')
+-- WHERE code = 'jolly';
+--
+-- -- Setup numero: stesso schema se/quando esiste un Price one-off reale
+-- -- UPDATE subscription_plans SET stripe_price_id = 'price_XXXXX' WHERE code = 'whatsapp_number_setup';
+--
+-- whatsapp_number_requests: pending_payment → requested → number_assigned → registered|failed
+-- Indice webhook già applicato: idx_wa_num_req_session ON stripe_session_id
+--   (lookup se manca metadata.number_request_id)
+--
+-- -- Attiva API flotta (quando il connettore è pronto)
+-- UPDATE subscription_plans
+-- SET features = jsonb_set(features, '{status}', '"available"')
+-- WHERE code = 'vehicle_api';

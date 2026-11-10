@@ -10,12 +10,14 @@ import com.omero.auth.repository.TenantRepository;
 import com.omero.auth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.omero.auth.outbox.TenantOutbox;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestTemplate;
@@ -31,6 +33,7 @@ public class ChannelEntitlementClient {
 
     private static final Logger log = LoggerFactory.getLogger(ChannelEntitlementClient.class);
     private static final Set<String> WA_PLANS = Set.of("gold", "platinum");
+    private static final Set<String> LLM_FEATURES = Set.of("ical_integration", "vehicle_api", "jolly");
 
     private final RestTemplate http;
     private final SubscriptionPlanRepository plans;
@@ -43,12 +46,15 @@ public class ChannelEntitlementClient {
     private final String billingEnv;
     private final String llmToken;
 
+    private final TenantOutbox outbox;
+
     public ChannelEntitlementClient(
             RestTemplate http,
             SubscriptionPlanRepository plans,
             TenantAddonRepository addons,
             UserRepository users,
             TenantRepository tenants,
+            TenantOutbox outbox,
             @Value("${channels.internal-url:}") String url,
             @Value("${channels.internal-token:}") String token,
             @Value("${llm.entitlements-url:}") String llmUrl,
@@ -59,6 +65,7 @@ public class ChannelEntitlementClient {
         this.addons = addons;
         this.users = users;
         this.tenants = tenants;
+        this.outbox = outbox;
         this.url = url == null ? "" : url.trim();
         this.token = token == null ? "" : token;
         this.llmUrl = llmUrl == null ? "" : llmUrl.trim();
@@ -149,10 +156,19 @@ public class ChannelEntitlementClient {
         syncWidget(tenantId, planCode, tenantStatus);
     }
 
+    @Transactional
     public void activateAddon(UUID tenantId, String code) {
         activateAddon(tenantId, code, "stripe");
     }
 
+    /**
+     * StripeWebhookService.activateIcal
+     *   → ChannelEntitlementClient.activateAddon  @Transactional
+     *       ├── addons.save(row)                  INSERT tenant_addons
+     *       └── outbox.enqueueFeature()           INSERT outbox_events  ← stessa TX
+     *   COMMIT ─────────────────────────────────────────────────────────────
+     */
+    @Transactional
     public void activateAddon(UUID tenantId, String code, String source) {
         if (tenantId == null || code == null || code.isBlank()) {
             return;
@@ -173,6 +189,7 @@ public class ChannelEntitlementClient {
             existing.setSource(origin);
             existing.setStatus("active");
             addons.save(existing);
+            publishIcal(tenantId, code, true);
             return;
         }
         TenantAddon row = new TenantAddon();
@@ -181,12 +198,22 @@ public class ChannelEntitlementClient {
         row.setStatus("active");
         row.setSource(origin);
         addons.save(row);
+        publishIcal(tenantId, code, true);
     }
 
+    /** enqueueFeature: INSERT outbox_events, stessa TX di addons.save. Non XADD. */
+    private void publishIcal(UUID tenantId, String code, boolean enable) {
+        if (code != null && LLM_FEATURES.contains(code.toLowerCase(Locale.ROOT))) {
+            outbox.enqueueFeature(tenantId, code.toLowerCase(Locale.ROOT), enable);
+        }
+    }
+
+    @Transactional
     public void deactivateAddon(UUID tenantId, String code) {
         deactivateAddon(tenantId, code, null);
     }
 
+    @Transactional
     public void deactivateAddon(UUID tenantId, String code, String source) {
         if (tenantId == null || code == null) {
             return;
@@ -200,6 +227,7 @@ public class ChannelEntitlementClient {
             }
             row.setStatus("inactive");
             addons.save(row);
+            publishIcal(tenantId, code, false);
         });
     }
 
