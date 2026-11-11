@@ -6,10 +6,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import jakarta.mail.internet.MimeMessage;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -30,6 +33,9 @@ public class RegistrationOtpService {
     private final RegistrationService registrationService;
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String mailFrom;
+    private final String smtpPassword;
+    private final String frontendBaseUrl;
+    private final String welcomeHtml;
     private final Duration ttl;
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
 
@@ -38,11 +44,17 @@ public class RegistrationOtpService {
             RegistrationService registrationService,
             ObjectProvider<JavaMailSender> mailSender,
             @Value("${app.mail-from:}") String mailFrom,
+            @Value("${spring.mail.password:}") String smtpPassword,
+            @Value("${app.frontend-base-url:https://telemaco.app}") String frontendBaseUrl,
             @Value("${app.registration-otp-ttl-minutes:10}") int ttlMinutes) {
         this.userRepository = userRepository;
         this.registrationService = registrationService;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
+        this.smtpPassword = smtpPassword == null ? "" : smtpPassword.trim();
+        String base = frontendBaseUrl == null ? "https://telemaco.app" : frontendBaseUrl.trim();
+        this.frontendBaseUrl = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+        this.welcomeHtml = loadWelcomeHtml();
         this.ttl = Duration.ofMinutes(Math.max(1, ttlMinutes));
     }
 
@@ -85,7 +97,9 @@ public class RegistrationOtpService {
             throw new IllegalArgumentException("Invalid code");
         }
         pending.remove(email);
-        return registrationService.registerCustomer(current.request);
+        RegistrationService.Result result = registrationService.registerCustomer(current.request);
+        sendWelcomeMail(email, current.request.getCountry());
+        return result;
     }
 
     private void issue(String email, RegisterRequest request, boolean resend) {
@@ -99,9 +113,41 @@ public class RegistrationOtpService {
         pending.put(email, new Pending(request, sha256(code), now.plus(ttl), now, 0));
     }
 
+    private void sendWelcomeMail(String to, String country) {
+        JavaMailSender sender = mailSender.getIfAvailable();
+        if (sender == null || mailFrom.isBlank() || smtpPassword.isBlank() || welcomeHtml == null) {
+            log.warn("Welcome mail skipped: SMTP or template not ready");
+            return;
+        }
+        try {
+            WelcomeEmailI18n i18n = WelcomeEmailI18n.fromCountry(country);
+            String html = i18n.apply(welcomeHtml, frontendBaseUrl + "/login");
+            MimeMessage mime = sender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mime, "UTF-8");
+            helper.setFrom(mailFrom);
+            helper.setTo(to);
+            helper.setSubject(i18n.subject());
+            helper.setText(html, true);
+            sender.send(mime);
+        } catch (Exception e) {
+            log.warn("Welcome mail failed: {}", e.getClass().getSimpleName());
+        }
+    }
+
+    private static String loadWelcomeHtml() {
+        try (InputStream in = RegistrationOtpService.class.getResourceAsStream("/templates/welcome-email.html")) {
+            if (in == null) {
+                return null;
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void sendMail(String to, String code) {
         JavaMailSender sender = mailSender.getIfAvailable();
-        if (sender == null || mailFrom.isBlank()) {
+        if (sender == null || mailFrom.isBlank() || smtpPassword.isBlank()) {
             log.warn("SMTP not configured; registration OTP not sent");
             throw new IllegalStateException("Service unavailable");
         }
@@ -115,7 +161,7 @@ public class RegistrationOtpService {
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("Registration OTP mail failed");
+            log.warn("Registration OTP mail failed: {}", e.getClass().getSimpleName());
             throw new IllegalStateException("Service unavailable");
         }
     }

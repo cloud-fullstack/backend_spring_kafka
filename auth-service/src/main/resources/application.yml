@@ -22,13 +22,14 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
-  # OTP e reset: Migadu noreply@. Email programma partner: email_outbox su feaci,
-  # solo info@ o support@telemaco.app (Brevo). Non usare SMTP_FROM / noreply@ lì.
+  # OTP e reset: Brevo smtp-relay.brevo.com:465 (SSL).
+  # Password: SMTP_PASSWORD, altrimenti SPRING_MAIL_PASSWORD (stesso Secret).
+  # Email programma partner: email_outbox su feaci, solo info@ o support@telemaco.app.
   mail:
-    host: smtp.migadu.com
-    port: 465
-    username: noreply@telemaco.app
-    password: ${SMTP_PASSWORD:}
+    host: ${SPRING_MAIL_HOST:${SMTP_HOST:smtp-relay.brevo.com}}
+    port: ${SPRING_MAIL_PORT:${SMTP_PORT:465}}
+    username: ${SPRING_MAIL_USERNAME:${SMTP_USERNAME:noreply@telemaco.app}}
+    password: ${SMTP_PASSWORD:${SPRING_MAIL_PASSWORD:}}
     properties:
       mail:
         smtp:
