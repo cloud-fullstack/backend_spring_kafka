@@ -44,13 +44,13 @@ public class PartnerProgramService {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerProgramService.class);
     private static final String PENDING_LEGAL = "pending-legal-review";
-    private static final Set<String> TYPES = Set.of("CUSTOM", "ZONE", "CODE");
+    private static final Set<String> TYPES = Set.of("CUSTOM", "ZONE", "CODE", "DPA");
     private static final Set<String> PURPOSES = Set.of(
             "account_terms", "partner_privacy", "rates_summary", "marketing", "profiling",
             "acts_as_business", "contract_accepted", "burdensome_clauses",
             "end_client_informed", "dpa_annex_3");
     private static final Set<String> PHASE_A_MANDATORY =
-            Set.of("account_terms", "partner_privacy", "rates_summary");
+            Set.of("account_terms", "partner_privacy", "rates_summary", "dpa_annex_3");
     private static final Set<String> PHASE_A_OPTIONAL = Set.of("marketing", "profiling");
     private static final Set<String> APPROVED_STATUSES = Set.of("APPROVED", "ACTIVE");
 
@@ -88,7 +88,7 @@ public class PartnerProgramService {
         if (!req.getPassword().equals(req.getConfirmPassword())) {
             throw new IllegalArgumentException("Passwords do not match");
         }
-        if (!req.isAccountTerms() || !req.isRatesSummary()) {
+        if (!req.isAccountTerms() || !req.isRatesSummary() || !req.isDpaAnnex3()) {
             throw new IllegalArgumentException("Terms and conditions must be accepted");
         }
         String email = RegistrationService.normalizeEmail(req.getEmail());
@@ -136,6 +136,11 @@ public class PartnerProgramService {
             db.inTransaction(status -> {
                 UUID rid = insertReseller(db, userId, req, interest, country);
                 insertPhaseAConsents(db, rid, userId, req, ip, ua);
+                try {
+                    insertContract(db, rid, "DPA");
+                } catch (RuntimeException e) {
+                    log.warn("feaci DPA contract not created at apply");
+                }
                 return rid;
             });
         } catch (RuntimeException e) {
@@ -195,6 +200,9 @@ public class PartnerProgramService {
         PartnerDb db = requireDb();
         String type = typeOf(rawType);
         FeaciReseller row = requireReseller(db, userId);
+        if (!"DPA".equals(type) && signedOfType(db, row.id(), "DPA") == null) {
+            throw new IllegalArgumentException("DPA must be signed");
+        }
         try {
             Map<String, Object> signed = signedOfType(db, row.id(), type);
             if (signed != null) {
@@ -306,6 +314,7 @@ public class PartnerProgramService {
             case "CUSTOM" -> 1500;
             case "ZONE" -> 1000;
             case "CODE" -> 700;
+            case "DPA" -> 0;
             default -> throw new IllegalArgumentException("Invalid request");
         };
     }
@@ -436,6 +445,7 @@ public class PartnerProgramService {
         insertConsentFrom(db, rid, userId, "account_terms", true, byPurpose, ip, ua);
         insertConsentFrom(db, rid, userId, "partner_privacy", true, byPurpose, ip, ua);
         insertConsentFrom(db, rid, userId, "rates_summary", true, byPurpose, ip, ua);
+        insertConsentFrom(db, rid, userId, "dpa_annex_3", true, byPurpose, ip, ua);
         insertConsentFrom(db, rid, userId, "marketing", req.isMarketing(), byPurpose, ip, ua);
         insertConsentFrom(db, rid, userId, "profiling", req.isProfiling(), byPurpose, ip, ua);
     }

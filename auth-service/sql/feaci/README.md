@@ -20,6 +20,7 @@ Secret delle subscriptions e negli script già eseguiti sul server.
 | `V3_verify.sql` | feaci, `SET ROLE partner_app`, ROLLBACK | dopo V5: 7 rifiuti + 3 percorsi corretti. Versioni 998/999 con `retired_at`, anche a contratti veri già pubblicati |
 | V4 | già sul cluster (non in git) | Paesi: CH e PT ammessi, GB e IE no |
 | `V5_contract_templates.sql` | database partner, `SET ROLE partner_app` | tre template se mancano + trigger `contract_acceptances_published_template`. Firma solo dopo UPDATE del legale |
+| `V6_dpa.sql` | database partner, `SET ROLE partner_app` | `reseller_contracts.type` ammette `DPA`; template e `legal_documents.dpa_annex_3` |
 
 `01_schema.sql` e `02_dati_iniziali.sql` restano sul server dove sono stati
 provati (PostgreSQL 16, ok da 11 in su). Copiarli qui quando si versionano.
@@ -41,6 +42,7 @@ kubectl exec -i -n <ns-postgres> <pod-postgres> -- psql -X -U <superuser> -d <db
 kubectl exec -i -n <ns-postgres> <pod-postgres> -- psql -X -v ON_ERROR_STOP=1 -U <superuser> -d <db-partner> < V3_prepara.sql
 kubectl exec -i -n <ns-postgres> <pod-postgres> -- psql -X -v ON_ERROR_STOP=1 -U <superuser> -d <db-partner> < V3__consensi_preventivi_firma.sql
 kubectl exec -i -n <ns-postgres> <pod-postgres> -- psql -X -v ON_ERROR_STOP=1 -U <superuser> -d <db-partner> < V5_contract_templates.sql
+kubectl exec -i -n <ns-postgres> <pod-postgres> -- psql -X -v ON_ERROR_STOP=1 -U <superuser> -d <db-partner> < V6_dpa.sql
 kubectl exec -i -n <ns-postgres> <pod-postgres> -- psql -X -v ON_ERROR_STOP=1 -U <superuser> -d <db-partner> < V3_verify.sql
 ```
 

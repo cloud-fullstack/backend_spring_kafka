@@ -187,6 +187,7 @@ public class RegistrationOtpService {
                 .vatNumber(src.getVatNumber())
                 .country(src.getCountry())
                 .referralCode(src.getReferralCode())
+                .dpaAccepted(src.isDpaAccepted())
                 .build();
     }
 

@@ -66,6 +66,7 @@ class RegistrationServiceTest {
                 .vertical("medical")
                 .companyName("Studio")
                 .country("IT")
+                .dpaAccepted(true)
                 .build();
     }
 

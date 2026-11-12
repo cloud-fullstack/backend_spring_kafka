@@ -222,6 +222,9 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     published_at  TIMESTAMPTZ,
     attempts      INT NOT NULL DEFAULT 0
 );
+-- Tabella già presente senza attempts: CREATE IF NOT EXISTS non la altera.
+-- ddl-auto=validate: Schema-validation: missing column [attempts] in table [outbox_events]
+ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS ix_outbox_unpublished ON outbox_events(id) WHERE published_at IS NULL;
 
 -- Stripe Price IDs + sblocco gold/platinum: vedi sql/stripe_price_ids.sql

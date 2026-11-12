@@ -64,6 +64,9 @@ public class RegistrationService {
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("Passwords do not match");
         }
+        if (!request.isDpaAccepted()) {
+            throw new IllegalArgumentException("Terms and conditions must be accepted");
+        }
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new IllegalArgumentException("Email already registered");
         }

@@ -54,6 +54,7 @@ class RegistrationOtpServiceTest {
                 .confirmPassword("secret1")
                 .vertical("hospitality")
                 .country("IT")
+                .dpaAccepted(true)
                 .build();
     }
 

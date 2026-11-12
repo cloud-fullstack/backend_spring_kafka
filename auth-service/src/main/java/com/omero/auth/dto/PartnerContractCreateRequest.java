@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PartnerContractCreateRequest {
-    /** CUSTOM | ZONE | CODE */
+    /** CUSTOM | ZONE | CODE | DPA */
     @NotBlank
     private String type;
 }

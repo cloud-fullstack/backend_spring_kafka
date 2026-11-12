@@ -1,5 +1,6 @@
 package com.omero.auth.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -43,4 +44,7 @@ public class RegisterRequest {
 
     @Size(max = 20)
     private String referralCode;
+
+    @AssertTrue
+    private boolean dpaAccepted;
 }

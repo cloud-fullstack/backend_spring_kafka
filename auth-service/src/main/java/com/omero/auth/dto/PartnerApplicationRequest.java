@@ -71,6 +71,9 @@ public class PartnerApplicationRequest {
     @AssertTrue
     private boolean ratesSummary;
 
+    @AssertTrue
+    private boolean dpaAnnex3;
+
     private boolean marketing;
     private boolean profiling;
 

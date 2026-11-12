@@ -23,6 +23,7 @@ class PartnerProgramServiceTest {
         assertEquals("CUSTOM", PartnerProgramService.typeOf("custom"));
         assertEquals("ZONE", PartnerProgramService.typeOf("ZONE"));
         assertEquals("CODE", PartnerProgramService.typeOf(" code "));
+        assertEquals("DPA", PartnerProgramService.typeOf("dpa"));
         assertThrows(IllegalArgumentException.class, () -> PartnerProgramService.typeOf("BRIEF"));
     }
 
@@ -31,6 +32,7 @@ class PartnerProgramServiceTest {
         assertEquals(1500, PartnerProgramService.rateBps("CUSTOM"));
         assertEquals(1000, PartnerProgramService.rateBps("ZONE"));
         assertEquals(700, PartnerProgramService.rateBps("CODE"));
+        assertEquals(0, PartnerProgramService.rateBps("DPA"));
     }
 
     @Test
@@ -98,6 +100,19 @@ class PartnerProgramServiceTest {
         code.remove("dpa_annex_3");
         assertTrue(PartnerProgramService.clausesComplete("CODE", code));
         assertFalse(PartnerProgramService.clausesComplete("ZONE", code));
+        assertTrue(PartnerProgramService.clausesComplete("DPA", code));
+    }
+
+    @Test
+    void dpaTypeNeedsNoExtraClauses() {
+        Map<String, Object> base = new LinkedHashMap<>();
+        base.put("acts_as_business", true);
+        base.put("contract_accepted", true);
+        base.put("burdensome_clauses", true);
+        base.put("contract_version", "1.0");
+        assertTrue(PartnerProgramService.clausesComplete("DPA", base));
+        assertFalse(PartnerProgramService.clausesComplete("CUSTOM", base));
+        assertFalse(PartnerProgramService.clausesComplete("ZONE", base));
     }
 
     @Test

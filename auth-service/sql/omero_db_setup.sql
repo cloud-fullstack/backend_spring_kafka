@@ -46,6 +46,7 @@ INSERT INTO business_verticals (code, name, sensitive_data) VALUES
     ('hospitality',    'B&B e strutture ricettive',           false),
     ('restaurant',     'Ristorazione',                        false),
     ('ecommerce',      'E-commerce',                          false),
+    ('real_estate',    'Agenzia immobiliare',                 false),
     ('other',          'Altro',                               false)
 ON CONFLICT (code) DO NOTHING;
 
@@ -360,6 +361,9 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     published_at  TIMESTAMPTZ,
     attempts      INT NOT NULL DEFAULT 0
 );
+-- Tabella già presente senza attempts: CREATE IF NOT EXISTS non la altera.
+-- ddl-auto=validate: Schema-validation: missing column [attempts] in table [outbox_events]
+ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS ix_outbox_unpublished ON outbox_events(id) WHERE published_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS whatsapp_number_requests (
@@ -386,5 +390,47 @@ CREATE INDEX IF NOT EXISTS idx_wa_num_req_tenant
 CREATE INDEX IF NOT EXISTS idx_wa_num_req_session
     ON whatsapp_number_requests (stripe_session_id)
     WHERE stripe_session_id IS NOT NULL;
+
+-- Satellite services (circe, calipso, …): stesso UUID di tenants.id, niente FK cross-DB.
+CREATE TABLE IF NOT EXISTS tenant_service_refs (
+    tenant_id      UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    service        TEXT        NOT NULL,
+    external_ref   TEXT        NOT NULL,
+    active         BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, service)
+);
+CREATE INDEX IF NOT EXISTS idx_tsrefs_service ON tenant_service_refs (service, external_ref);
+
+-- DPA / informative verso i clienti (tenant). Il DPA partner sta su feaci.
+CREATE TABLE IF NOT EXISTS legal_documents (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doc_type        TEXT NOT NULL CHECK (doc_type IN (
+                        'tenant_terms',
+                        'tenant_privacy',
+                        'dpa_art28',
+                        'data_retention_policy'
+                    )),
+    version         TEXT NOT NULL,
+    language        TEXT NOT NULL DEFAULT 'it',
+    title           TEXT NOT NULL,
+    body_sha256     TEXT NOT NULL DEFAULT 'pending-legal-review',
+    pdf_url         TEXT,
+    effective_from  DATE NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (doc_type, version, language)
+);
+INSERT INTO legal_documents (doc_type, version, language, title, body_sha256, effective_from)
+VALUES
+    ('dpa_art28', '1.0', 'it',
+     'Accordo sul Trattamento dei Dati Personali (Art. 28 GDPR) — Clienti',
+     'pending-legal-review', CURRENT_DATE),
+    ('dpa_art28', '1.0', 'en',
+     'Data Processing Agreement (Art. 28 GDPR) — Customers',
+     'pending-legal-review', CURRENT_DATE),
+    ('tenant_privacy', '1.0', 'it',
+     'Informativa sul trattamento dei dati degli utenti finali',
+     'pending-legal-review', CURRENT_DATE)
+ON CONFLICT (doc_type, version, language) DO NOTHING;
 
 COMMIT;
