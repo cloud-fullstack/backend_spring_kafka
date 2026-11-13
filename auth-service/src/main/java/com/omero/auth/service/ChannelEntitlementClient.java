@@ -20,6 +20,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashSet;
@@ -27,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class ChannelEntitlementClient {
@@ -47,6 +50,7 @@ public class ChannelEntitlementClient {
     private final String llmToken;
 
     private final TenantOutbox outbox;
+    private final Set<UUID> channelsUnreachableLogged = ConcurrentHashMap.newKeySet();
 
     public ChannelEntitlementClient(
             RestTemplate http,
@@ -150,7 +154,7 @@ public class ChannelEntitlementClient {
                         new HttpEntity<>(Map.of("tenantId", tenantId.toString(), "whatsapp", wa), h),
                         Void.class);
             } catch (Exception e) {
-                log.warn("channels entitlement sync failed tenant={}", tenantId);
+                logChannelsFailure(tenantId, e);
             }
         }
         syncWidget(tenantId, planCode, tenantStatus);
@@ -299,7 +303,7 @@ public class ChannelEntitlementClient {
                         new HttpEntity<>(Map.of("tenantId", tenantId.toString()), h),
                         Void.class);
             } catch (Exception e) {
-                log.warn("channels purge failed tenant={}", tenantId);
+                log.warn("channels purge failed tenant={}: {}", tenantId, e.getMessage());
             }
         }
         if (!llmUrl.isBlank() && Set.of("dev", "prod").contains(billingEnv)) {
@@ -342,6 +346,17 @@ public class ChannelEntitlementClient {
         } catch (Exception e) {
             log.warn("widget entitlement sync failed tenant={}", tenantId);
         }
+    }
+
+    private void logChannelsFailure(UUID tenantId, Exception e) {
+        String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        boolean skipRepeat = e instanceof ResourceAccessException
+                || (e instanceof HttpClientErrorException h && h.getStatusCode().is4xxClientError());
+        if (skipRepeat && !channelsUnreachableLogged.add(tenantId)) {
+            log.debug("channels entitlement sync failed tenant={}: {}", tenantId, msg);
+            return;
+        }
+        log.warn("channels entitlement sync failed tenant={}: {}", tenantId, msg);
     }
 
     private boolean whatsappIncluded(String planCode) {
