@@ -53,6 +53,13 @@ social:
     client-id: ${SOCIAL_FACEBOOK_CLIENT_ID:}
     client-secret: ${SOCIAL_FACEBOOK_CLIENT_SECRET:}
 
+# Cloudflare Turnstile (registrazione). Secret solo da env/Secret k8s, mai in git.
+# Dev: TURNSTILE_ENABLED=false. Prod: true + TURNSTILE_SECRET nel Secret subscriptions.
+cloudflare:
+  turnstile:
+    enabled: ${TURNSTILE_ENABLED:false}
+    secret: ${TURNSTILE_SECRET:}
+
 management:
   health:
     mail:

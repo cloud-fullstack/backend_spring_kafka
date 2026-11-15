@@ -47,4 +47,8 @@ public class RegisterRequest {
 
     @AssertTrue
     private boolean dpaAccepted;
+
+    /** Cloudflare Turnstile token from the SPA. Optional until siteverify is wired. */
+    @Size(max = 2048)
+    private String turnstileToken;
 }

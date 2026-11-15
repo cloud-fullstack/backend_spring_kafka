@@ -32,6 +32,7 @@ class RegistrationOtpServiceTest {
 
     @Mock UserRepository userRepository;
     @Mock RegistrationService registrationService;
+    @Mock TurnstileService turnstileService;
     @Mock ObjectProvider<JavaMailSender> mailSender;
     @Mock JavaMailSender sender;
 
@@ -42,8 +43,9 @@ class RegistrationOtpServiceTest {
         lenient().when(mailSender.getIfAvailable()).thenReturn(sender);
         lenient().when(sender.createMimeMessage())
                 .thenAnswer(inv -> new MimeMessage(Session.getInstance(new Properties())));
+        lenient().when(turnstileService.verify(any())).thenReturn(true);
         service = new RegistrationOtpService(
-                userRepository, registrationService, mailSender,
+                userRepository, registrationService, turnstileService, mailSender,
                 "noreply@example.com", "smtp-secret", "https://omero.dev", 10);
     }
 
@@ -109,6 +111,14 @@ class RegistrationOtpServiceTest {
         RegisterRequest req = base();
         req.setConfirmPassword("other");
         assertThrows(IllegalArgumentException.class, () -> service.start(req));
+        verify(sender, never()).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void turnstileFailureDoesNotStart() {
+        when(turnstileService.verify(any())).thenReturn(false);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.start(base()));
+        assertEquals("Security verification failed", ex.getMessage());
         verify(sender, never()).send(any(SimpleMailMessage.class));
     }
 

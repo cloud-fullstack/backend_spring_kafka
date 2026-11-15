@@ -31,6 +31,7 @@ public class RegistrationOtpService {
 
     private final UserRepository userRepository;
     private final RegistrationService registrationService;
+    private final TurnstileService turnstileService;
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String mailFrom;
     private final String smtpPassword;
@@ -42,6 +43,7 @@ public class RegistrationOtpService {
     public RegistrationOtpService(
             UserRepository userRepository,
             RegistrationService registrationService,
+            TurnstileService turnstileService,
             ObjectProvider<JavaMailSender> mailSender,
             @Value("${app.mail-from:}") String mailFrom,
             @Value("${spring.mail.password:}") String smtpPassword,
@@ -49,6 +51,7 @@ public class RegistrationOtpService {
             @Value("${app.registration-otp-ttl-minutes:10}") int ttlMinutes) {
         this.userRepository = userRepository;
         this.registrationService = registrationService;
+        this.turnstileService = turnstileService;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.smtpPassword = smtpPassword == null ? "" : smtpPassword.trim();
@@ -63,6 +66,9 @@ public class RegistrationOtpService {
     }
 
     public void start(RegisterRequest request) {
+        if (!turnstileService.verify(request.getTurnstileToken())) {
+            throw new IllegalArgumentException("Security verification failed");
+        }
         validatePasswords(request);
         String email = RegistrationService.normalizeEmail(request.getEmail());
         if (userRepository.existsByEmailIgnoreCase(email)) {
