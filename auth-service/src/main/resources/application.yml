@@ -113,7 +113,7 @@ llm:
 
 billing:
   plans-provider: ${BILLING_PLANS_PROVIDER:stripe}
-  demo-days: ${DEMO_DAYS:3}
+  demo-days: ${DEMO_DAYS:7}
 
 outbox:
   relay:

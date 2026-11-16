@@ -12,11 +12,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,7 +62,7 @@ class RegistrationOtpServiceTest {
     }
 
     @Test
-    void startSendsCodeAndVerifyCreatesUser() {
+    void startSendsCodeAndVerifyCreatesUser() throws Exception {
         when(userRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(false);
         User user = new User();
         user.setId(UUID.randomUUID());
@@ -73,16 +74,35 @@ class RegistrationOtpServiceTest {
 
         assertEquals(user.getId(), result.user().getId());
         verify(registrationService).registerCustomer(any());
-        verify(sender).send(any(MimeMessage.class));
+        verify(sender, times(2)).send(any(MimeMessage.class));
     }
 
     @Test
-    void welcomeMailFailureDoesNotFailRegistration() {
+    void otpMailIsHtmlWithItalianCopy() throws Exception {
+        when(userRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(false);
+        service.start(base());
+        ArgumentCaptor<MimeMessage> cap = ArgumentCaptor.forClass(MimeMessage.class);
+        verify(sender).send(cap.capture());
+        String html = String.valueOf(cap.getValue().getContent());
+        assertTrue(html.contains("Il tuo codice di accesso"));
+        assertTrue(html.contains("telemaco.app") || html.contains("omero.dev"));
+        assertTrue(html.contains("#2563eb"));
+        assertFalse(html.contains("552556"));
+    }
+
+    @Test
+    void welcomeMailFailureDoesNotFailRegistration() throws Exception {
         when(userRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(false);
         User user = new User();
         user.setId(UUID.randomUUID());
         when(registrationService.registerCustomer(any())).thenReturn(new RegistrationService.Result(user, null));
-        when(sender.createMimeMessage()).thenThrow(new RuntimeException("smtp"));
+        AtomicInteger n = new AtomicInteger();
+        when(sender.createMimeMessage()).thenAnswer(inv -> {
+            if (n.getAndIncrement() >= 1) {
+                throw new RuntimeException("smtp");
+            }
+            return new MimeMessage(Session.getInstance(new Properties()));
+        });
 
         service.start(base());
         String code = capturedCode();
@@ -103,7 +123,7 @@ class RegistrationOtpServiceTest {
     void existingEmailDoesNotStart() {
         when(userRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(true);
         assertThrows(IllegalArgumentException.class, () -> service.start(base()));
-        verify(sender, never()).send(any(SimpleMailMessage.class));
+        verify(sender, never()).send(any(MimeMessage.class));
     }
 
     @Test
@@ -111,7 +131,7 @@ class RegistrationOtpServiceTest {
         RegisterRequest req = base();
         req.setConfirmPassword("other");
         assertThrows(IllegalArgumentException.class, () -> service.start(req));
-        verify(sender, never()).send(any(SimpleMailMessage.class));
+        verify(sender, never()).send(any(MimeMessage.class));
     }
 
     @Test
@@ -119,14 +139,19 @@ class RegistrationOtpServiceTest {
         when(turnstileService.verify(any())).thenReturn(false);
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.start(base()));
         assertEquals("Security verification failed", ex.getMessage());
-        verify(sender, never()).send(any(SimpleMailMessage.class));
+        verify(sender, never()).send(any(MimeMessage.class));
     }
 
-    private String capturedCode() {
-        ArgumentCaptor<SimpleMailMessage> cap = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    private String capturedCode() throws Exception {
+        ArgumentCaptor<MimeMessage> cap = ArgumentCaptor.forClass(MimeMessage.class);
         verify(sender).send(cap.capture());
-        Matcher m = Pattern.compile("(\\d{6})").matcher(cap.getValue().getText());
-        assertTrue(m.find());
+        String html = String.valueOf(cap.getValue().getContent());
+        Matcher m = Pattern.compile(">(\\d{6})<").matcher(html);
+        if (!m.find()) {
+            m = Pattern.compile("(\\d{6})").matcher(html);
+            assertTrue(m.find());
+            return m.group(1);
+        }
         return m.group(1);
     }
 }

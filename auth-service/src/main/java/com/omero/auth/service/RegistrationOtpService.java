@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import jakarta.mail.internet.MimeMessage;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -37,6 +36,7 @@ public class RegistrationOtpService {
     private final String smtpPassword;
     private final String frontendBaseUrl;
     private final String welcomeHtml;
+    private final String otpHtml;
     private final Duration ttl;
     private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
 
@@ -57,7 +57,8 @@ public class RegistrationOtpService {
         this.smtpPassword = smtpPassword == null ? "" : smtpPassword.trim();
         String base = frontendBaseUrl == null ? "https://telemaco.app" : frontendBaseUrl.trim();
         this.frontendBaseUrl = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-        this.welcomeHtml = loadWelcomeHtml();
+        this.welcomeHtml = loadClasspathHtml("/templates/welcome-email.html");
+        this.otpHtml = loadClasspathHtml("/templates/otp-email.html");
         this.ttl = Duration.ofMinutes(Math.max(1, ttlMinutes));
     }
 
@@ -115,8 +116,9 @@ public class RegistrationOtpService {
             throw new IllegalArgumentException("Invalid request");
         }
         String code = String.format(Locale.ROOT, "%06d", RNG.nextInt(1_000_000));
-        sendMail(email, code);
-        pending.put(email, new Pending(request, sha256(code), now.plus(ttl), now, 0));
+        Instant expires = now.plus(ttl);
+        sendMail(email, code, request.getCountry(), expires);
+        pending.put(email, new Pending(request, sha256(code), expires, now, 0));
     }
 
     private void sendWelcomeMail(String to, String country) {
@@ -140,8 +142,8 @@ public class RegistrationOtpService {
         }
     }
 
-    private static String loadWelcomeHtml() {
-        try (InputStream in = RegistrationOtpService.class.getResourceAsStream("/templates/welcome-email.html")) {
+    private static String loadClasspathHtml(String path) {
+        try (InputStream in = RegistrationOtpService.class.getResourceAsStream(path)) {
             if (in == null) {
                 return null;
             }
@@ -151,19 +153,26 @@ public class RegistrationOtpService {
         }
     }
 
-    private void sendMail(String to, String code) {
+    private void sendMail(String to, String code, String country, Instant expires) {
         JavaMailSender sender = mailSender.getIfAvailable();
         if (sender == null || mailFrom.isBlank() || smtpPassword.isBlank()) {
             log.warn("SMTP not configured; registration OTP not sent");
             throw new IllegalStateException("Service unavailable");
         }
+        OtpEmailI18n i18n = OtpEmailI18n.fromCountry(country);
         try {
-            SimpleMailMessage msg = new SimpleMailMessage();
-            msg.setFrom(mailFrom);
-            msg.setTo(to);
-            msg.setSubject("Your registration code");
-            msg.setText("Your one-time code is " + code + "\nIt expires in " + ttl.toMinutes() + " minutes.");
-            sender.send(msg);
+            MimeMessage mime = sender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mime, StandardCharsets.UTF_8.name());
+            helper.setFrom(mailFrom);
+            helper.setTo(to);
+            helper.setSubject(i18n.subject());
+            String html = otpHtml == null || otpHtml.isBlank()
+                    ? i18n.apply(
+                            "<html><body><p>{{HEADING}}</p><p>{{INTRO}}</p><p>{{CODE}}</p><p>{{EXPIRY_NOTE}}</p></body></html>",
+                            code, expires, ttl.toMinutes(), frontendBaseUrl)
+                    : i18n.apply(otpHtml, code, expires, ttl.toMinutes(), frontendBaseUrl);
+            helper.setText(html, true);
+            sender.send(mime);
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {

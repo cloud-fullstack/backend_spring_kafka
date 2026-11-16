@@ -177,6 +177,19 @@ public class AuthController {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("planId", e.planId() == null ? "" : e.planId());
         body.put("tenantStatus", e.tenantStatus() == null ? "" : e.tenantStatus());
+        String businessType = "";
+        User user = userRepository.findById(uid).orElse(null);
+        if (user != null && user.getTenantId() != null) {
+            Tenant tenant = tenantRepository.findById(user.getTenantId()).orElse(null);
+            if (tenant != null) {
+                if (tenant.getBusinessType() != null && !tenant.getBusinessType().isBlank()) {
+                    businessType = tenant.getBusinessType();
+                } else if (tenant.getVertical() != null) {
+                    businessType = tenant.getVertical();
+                }
+            }
+        }
+        body.put("businessType", businessType);
         return ResponseEntity.ok(body);
     }
 

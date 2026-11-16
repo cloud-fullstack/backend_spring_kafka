@@ -48,7 +48,7 @@ public class BillingAccountService {
             StripeSubscriptionRepository stripeSubscriptions,
             TenantAddonRepository tenantAddons,
             @Value("${lemonsqueezy.customer-portal-url:}") String lemonPortalUrl,
-            @Value("${billing.demo-days:3}") int demoDays) {
+            @Value("${billing.demo-days:7}") int demoDays) {
         this.accounts = accounts;
         this.users = users;
         this.tenants = tenants;
