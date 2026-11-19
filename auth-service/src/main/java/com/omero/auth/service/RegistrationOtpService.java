@@ -199,6 +199,7 @@ public class RegistrationOtpService {
                 .confirmPassword(src.getConfirmPassword())
                 .vertical(src.getVertical())
                 .companyName(src.getCompanyName())
+                .bookingNotificationEmail(src.getBookingNotificationEmail())
                 .vatNumber(src.getVatNumber())
                 .country(src.getCountry())
                 .referralCode(src.getReferralCode())

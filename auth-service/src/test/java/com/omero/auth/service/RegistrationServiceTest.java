@@ -251,7 +251,7 @@ class RegistrationServiceTest {
         when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(verticalRepository.existsByCodeAndActiveTrue("vehicle_rental")).thenReturn(true);
 
-        service.completeProfile(userId, "vehicle_rental", "Noleggio");
+        service.completeProfile(userId, "vehicle_rental", "Noleggio", null);
 
         assertEquals("vehicle_rental", tenant.getVertical());
         assertEquals("vehicle", tenant.getBusinessType());
@@ -273,7 +273,7 @@ class RegistrationServiceTest {
         when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(verticalRepository.existsByCodeAndActiveTrue("vehicle_rental")).thenReturn(true);
 
-        service.completeProfile(userId, "vehicle-rental", "Noleggio");
+        service.completeProfile(userId, "vehicle-rental", "Noleggio", null);
 
         assertEquals("vehicle_rental", tenant.getVertical());
         assertEquals("vehicle", tenant.getBusinessType());

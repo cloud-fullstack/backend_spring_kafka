@@ -10,6 +10,7 @@ import com.omero.auth.dto.ResetPasswordRequest;
 import com.omero.auth.dto.ResellerRegisterRequest;
 import com.omero.auth.dto.SocialLoginResponse;
 import com.omero.auth.dto.SocialUser;
+import com.omero.auth.dto.TenantSettingsRequest;
 import com.omero.auth.entity.Tenant;
 import com.omero.auth.entity.User;
 import com.omero.auth.repository.TenantRepository;
@@ -166,7 +167,19 @@ public class AuthController {
 
     @PostMapping("/complete-profile")
     public ResponseEntity<Map<String, Object>> completeProfile(@RequestBody @Valid CompleteProfileRequest request) {
-        registrationService.completeProfile(currentUserId(), request.getVertical(), request.getCompanyName());
+        registrationService.completeProfile(
+                currentUserId(),
+                request.getVertical(),
+                request.getCompanyName(),
+                request.getBookingNotificationEmail());
+        return ResponseEntity.ok(Map.of("success", true));
+    }
+
+    @PatchMapping("/tenant-settings")
+    public ResponseEntity<Map<String, Object>> updateTenantSettings(
+            @RequestBody @Valid TenantSettingsRequest request) {
+        registrationService.updateBookingNotificationEmail(
+                currentUserId(), request.getBookingNotificationEmail());
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -178,18 +191,34 @@ public class AuthController {
         body.put("planId", e.planId() == null ? "" : e.planId());
         body.put("tenantStatus", e.tenantStatus() == null ? "" : e.tenantStatus());
         String businessType = "";
+        String registrationEmail = "";
+        String bookingNotificationEmail = "";
         User user = userRepository.findById(uid).orElse(null);
-        if (user != null && user.getTenantId() != null) {
-            Tenant tenant = tenantRepository.findById(user.getTenantId()).orElse(null);
-            if (tenant != null) {
-                if (tenant.getBusinessType() != null && !tenant.getBusinessType().isBlank()) {
-                    businessType = tenant.getBusinessType();
-                } else if (tenant.getVertical() != null) {
-                    businessType = tenant.getVertical();
+        if (user != null) {
+            registrationEmail = user.getEmail() == null ? "" : user.getEmail();
+            if (user.getTenantId() != null) {
+                Tenant tenant = tenantRepository.findById(user.getTenantId()).orElse(null);
+                if (tenant != null) {
+                    if (tenant.getBusinessType() != null && !tenant.getBusinessType().isBlank()) {
+                        businessType = tenant.getBusinessType();
+                    } else if (tenant.getVertical() != null) {
+                        businessType = tenant.getVertical();
+                    }
+                    if (tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
+                        registrationEmail = tenant.getEmail();
+                    }
+                    if (tenant.getBookingNotificationEmail() != null
+                            && !tenant.getBookingNotificationEmail().isBlank()) {
+                        bookingNotificationEmail = tenant.getBookingNotificationEmail();
+                    } else {
+                        bookingNotificationEmail = registrationEmail;
+                    }
                 }
             }
         }
         body.put("businessType", businessType);
+        body.put("registrationEmail", registrationEmail);
+        body.put("bookingNotificationEmail", bookingNotificationEmail);
         return ResponseEntity.ok(body);
     }
 

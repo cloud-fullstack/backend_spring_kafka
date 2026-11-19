@@ -1,5 +1,6 @@
 package com.omero.auth.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -11,4 +12,9 @@ public class CompleteProfileRequest {
 
     @Size(max = 200)
     private String companyName;
+
+    /** Optional; empty keeps the registration / login email for booking alerts. */
+    @Email
+    @Size(max = 254)
+    private String bookingNotificationEmail;
 }

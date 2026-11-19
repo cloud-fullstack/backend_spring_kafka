@@ -36,6 +36,14 @@ public class RegisterRequest {
     @Size(max = 200)
     private String companyName;
 
+    /**
+     * Optional inbox for service bookings (BnB, rental, medical, …).
+     * Empty → use registration {@link #email}.
+     */
+    @Email
+    @Size(max = 254)
+    private String bookingNotificationEmail;
+
     @Size(max = 20)
     private String vatNumber;
 

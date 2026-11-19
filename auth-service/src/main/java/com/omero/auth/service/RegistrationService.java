@@ -91,6 +91,8 @@ public class RegistrationService {
                 country);
         tenant.setCompanyName(request.getCompanyName());
         tenant.setVatNumber(request.getVatNumber());
+        tenant.setBookingNotificationEmail(
+                resolveBookingNotificationEmail(email, request.getBookingNotificationEmail()));
         attributeReseller(tenant, request.getReferralCode());
         tenant = tenantRepository.save(tenant);
 
@@ -178,7 +180,11 @@ public class RegistrationService {
     }
 
     @Transactional
-    public void completeProfile(java.util.UUID userId, String verticalRaw, String companyName) {
+    public void completeProfile(
+            java.util.UUID userId,
+            String verticalRaw,
+            String companyName,
+            String bookingNotificationEmail) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new SecurityException("Invalid credentials"));
         if (user.getTenantId() == null) {
@@ -203,8 +209,42 @@ public class RegistrationService {
             user.setBusinessName(name);
             userRepository.save(user);
         }
+        String loginEmail = normalizeEmail(user.getEmail());
+        tenant.setBookingNotificationEmail(
+                resolveBookingNotificationEmail(loginEmail, bookingNotificationEmail));
         tenantRepository.save(tenant);
         entitlements.startTrialConfig(tenant.getId(), tenant.getBusinessType());
+    }
+
+    @Transactional
+    public void updateBookingNotificationEmail(java.util.UUID userId, String bookingNotificationEmail) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new SecurityException("Invalid credentials"));
+        if (user.getTenantId() == null) {
+            throw new IllegalArgumentException("Invalid request");
+        }
+        Tenant tenant = tenantRepository.findById(user.getTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid request"));
+        String loginEmail = normalizeEmail(user.getEmail());
+        tenant.setBookingNotificationEmail(
+                resolveBookingNotificationEmail(loginEmail, bookingNotificationEmail));
+        tenantRepository.save(tenant);
+    }
+
+    /**
+     * Same as login email → store null (fallback to tenants.email / users.email).
+     * Different address → store normalized override.
+     */
+    static String resolveBookingNotificationEmail(String registrationEmail, String raw) {
+        String login = normalizeEmail(registrationEmail);
+        String alt = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        if (alt.isBlank() || alt.equals(login)) {
+            return null;
+        }
+        if (!alt.contains("@") || alt.length() > 254) {
+            throw new IllegalArgumentException("Invalid booking notification email");
+        }
+        return alt;
     }
 
     private Tenant newDemoTenant(String email, String name, String vertical, String businessType, String country) {

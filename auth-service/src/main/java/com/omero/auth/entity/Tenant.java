@@ -29,6 +29,13 @@ public class Tenant {
     @Column(name = "company_name")
     private String companyName;
 
+    /**
+     * Inbox for booking/reservation alerts for the chosen service.
+     * Null or blank → fall back to {@link #email} (registration address).
+     */
+    @Column(name = "booking_notification_email")
+    private String bookingNotificationEmail;
+
     @Column(name = "vat_number")
     private String vatNumber;
 

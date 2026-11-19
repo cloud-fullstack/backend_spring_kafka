@@ -96,6 +96,7 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type                 VARCH
 -- createFromSocial salva vertical = NULL finché non arriva complete-profile
 ALTER TABLE tenants ALTER COLUMN vertical DROP NOT NULL;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name                  VARCHAR(200);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS booking_notification_email    VARCHAR(255);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vat_number                    VARCHAR(20);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country                       CHAR(2);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reseller_id                   UUID REFERENCES resellers(id);
