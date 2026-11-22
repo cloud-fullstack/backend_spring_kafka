@@ -33,6 +33,9 @@ class PartnerProgramServiceTest {
         assertEquals(1000, PartnerProgramService.rateBps("ZONE"));
         assertEquals(700, PartnerProgramService.rateBps("CODE"));
         assertEquals(0, PartnerProgramService.rateBps("DPA"));
+        assertEquals(2500, PartnerProgramService.oneTimeRateBps("CUSTOM"));
+        assertEquals(1500, PartnerProgramService.oneTimeRateBps("ZONE"));
+        assertEquals(0, PartnerProgramService.oneTimeRateBps("CODE"));
     }
 
     @Test

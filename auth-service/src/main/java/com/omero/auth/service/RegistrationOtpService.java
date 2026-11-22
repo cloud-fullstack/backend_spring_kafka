@@ -4,11 +4,14 @@ import com.omero.auth.dto.RegisterRequest;
 import com.omero.auth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -38,7 +41,10 @@ public class RegistrationOtpService {
     private final String welcomeHtml;
     private final String otpHtml;
     private final Duration ttl;
-    private final ConcurrentHashMap<String, Pending> pending = new ConcurrentHashMap<>();
+    private static final String REDIS_PREFIX = "regotp:";
+    private final ConcurrentHashMap<String, Pending> memory = new ConcurrentHashMap<>();
+    private StringRedisTemplate redis;
+    private ObjectMapper objectMapper;
 
     public RegistrationOtpService(
             UserRepository userRepository,
@@ -62,6 +68,16 @@ public class RegistrationOtpService {
         this.ttl = Duration.ofMinutes(Math.max(1, ttlMinutes));
     }
 
+    /**
+     * Optional Redis (omero.redis.enabled). Without it, pending OTPs stay in this JVM
+     * and are lost on restart / a second replica.
+     */
+    @Autowired(required = false)
+    void setRedisStore(StringRedisTemplate redis, ObjectMapper objectMapper) {
+        this.redis = redis;
+        this.objectMapper = objectMapper;
+    }
+
     public boolean emailRegistered(String rawEmail) {
         return userRepository.existsByEmailIgnoreCase(RegistrationService.normalizeEmail(rawEmail));
     }
@@ -80,9 +96,9 @@ public class RegistrationOtpService {
 
     public void resend(String rawEmail) {
         String email = RegistrationService.normalizeEmail(rawEmail);
-        Pending current = pending.get(email);
+        Pending current = getPending(email);
         if (current == null || current.expires.isBefore(Instant.now())) {
-            pending.remove(email);
+            removePending(email);
             throw new IllegalArgumentException("Invalid request");
         }
         issue(email, current.request, true);
@@ -90,27 +106,28 @@ public class RegistrationOtpService {
 
     public RegistrationService.Result verify(String rawEmail, String code) {
         String email = RegistrationService.normalizeEmail(rawEmail);
-        Pending current = pending.get(email);
+        Pending current = getPending(email);
         if (current == null || current.expires.isBefore(Instant.now())) {
-            pending.remove(email);
+            removePending(email);
             throw new IllegalArgumentException("Invalid code");
         }
         if (current.attempts >= MAX_ATTEMPTS) {
-            pending.remove(email);
+            removePending(email);
             throw new IllegalArgumentException("Too many attempts");
         }
         current.attempts++;
         if (code == null || !MessageDigest.isEqual(sha256(code.trim()), current.otpHash)) {
+            putPending(email, current);
             throw new IllegalArgumentException("Invalid code");
         }
-        pending.remove(email);
+        removePending(email);
         RegistrationService.Result result = registrationService.registerCustomer(current.request);
-        sendWelcomeMail(email, current.request.getCountry());
+        sendWelcomeMail(email, current.request);
         return result;
     }
 
     private void issue(String email, RegisterRequest request, boolean resend) {
-        Pending existing = pending.get(email);
+        Pending existing = getPending(email);
         Instant now = Instant.now();
         if (resend && existing != null && existing.lastSent.plus(RESEND_COOLDOWN).isAfter(now)) {
             throw new IllegalArgumentException("Invalid request");
@@ -118,18 +135,21 @@ public class RegistrationOtpService {
         String code = String.format(Locale.ROOT, "%06d", RNG.nextInt(1_000_000));
         Instant expires = now.plus(ttl);
         sendMail(email, code, request.getCountry(), expires);
-        pending.put(email, new Pending(request, sha256(code), expires, now, 0));
+        putPending(email, new Pending(request, sha256(code), expires, now, 0));
     }
 
-    private void sendWelcomeMail(String to, String country) {
+    private void sendWelcomeMail(String to, RegisterRequest request) {
         JavaMailSender sender = mailSender.getIfAvailable();
         if (sender == null || mailFrom.isBlank() || smtpPassword.isBlank() || welcomeHtml == null) {
             log.warn("Welcome mail skipped: SMTP or template not ready");
             return;
         }
         try {
-            WelcomeEmailI18n i18n = WelcomeEmailI18n.fromCountry(country);
-            String html = i18n.apply(welcomeHtml, frontendBaseUrl + "/login");
+            WelcomeEmailI18n i18n = WelcomeEmailI18n.fromCountry(request.getCountry());
+            String vertical = TenantVerticals.normalizeVertical(request.getVertical());
+            String pricing = SectorWelcomeMail.html(
+                    i18n, vertical, request.getOnboardingProfile(), frontendBaseUrl);
+            String html = i18n.apply(welcomeHtml, frontendBaseUrl + "/dashboard", pricing);
             MimeMessage mime = sender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mime, "UTF-8");
             helper.setFrom(mailFrom);
@@ -203,8 +223,56 @@ public class RegistrationOtpService {
                 .vatNumber(src.getVatNumber())
                 .country(src.getCountry())
                 .referralCode(src.getReferralCode())
+                .onboardingProfile(src.getOnboardingProfile())
                 .dpaAccepted(src.isDpaAccepted())
                 .build();
+    }
+
+    private Pending getPending(String email) {
+        if (redis != null && objectMapper != null) {
+            try {
+                String raw = redis.opsForValue().get(REDIS_PREFIX + email);
+                if (raw == null || raw.isBlank()) {
+                    return null;
+                }
+                return objectMapper.readValue(raw, Pending.class);
+            } catch (Exception e) {
+                log.warn("OTP redis get failed");
+                return memory.get(email);
+            }
+        }
+        return memory.get(email);
+    }
+
+    private void putPending(String email, Pending pending) {
+        if (redis == null || objectMapper == null) {
+            memory.put(email, pending);
+            return;
+        }
+        try {
+            Duration left = Duration.between(Instant.now(), pending.expires);
+            if (left.isNegative() || left.isZero()) {
+                redis.delete(REDIS_PREFIX + email);
+                memory.remove(email);
+                return;
+            }
+            redis.opsForValue().set(REDIS_PREFIX + email, objectMapper.writeValueAsString(pending), left);
+            memory.remove(email);
+        } catch (Exception e) {
+            log.warn("OTP redis put failed");
+            memory.put(email, pending);
+        }
+    }
+
+    private void removePending(String email) {
+        memory.remove(email);
+        if (redis != null) {
+            try {
+                redis.delete(REDIS_PREFIX + email);
+            } catch (Exception e) {
+                log.warn("OTP redis del failed");
+            }
+        }
     }
 
     private static byte[] sha256(String value) {
@@ -215,12 +283,15 @@ public class RegistrationOtpService {
         }
     }
 
-    private static final class Pending {
-        private final RegisterRequest request;
-        private final byte[] otpHash;
-        private final Instant expires;
-        private final Instant lastSent;
-        private int attempts;
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    static final class Pending {
+        public RegisterRequest request;
+        public byte[] otpHash;
+        public Instant expires;
+        public Instant lastSent;
+        public int attempts;
+
+        Pending() {}
 
         private Pending(RegisterRequest request, byte[] otpHash, Instant expires, Instant lastSent, int attempts) {
             this.request = request;

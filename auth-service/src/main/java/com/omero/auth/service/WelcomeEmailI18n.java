@@ -79,11 +79,17 @@ public enum WelcomeEmailI18n {
     }
 
     public String apply(String html, String loginUrl) {
+        return apply(html, loginUrl, "");
+    }
+
+    public String apply(String html, String ctaUrl, String pricingHtml) {
+        String extra = pricingHtml == null ? "" : pricingHtml;
         return html
                 .replace("{{GREETING}}", greeting)
                 .replace("{{BODY}}", body)
+                .replace("{{PRICING}}", extra)
                 .replace("{{CTA}}", cta)
-                .replace("{{LOGIN_URL}}", loginUrl)
+                .replace("{{LOGIN_URL}}", ctaUrl)
                 .replace("{{DISCLAIMER}}", disclaimer)
                 .replace("{{SUPPORT_TEXT}}", supportText)
                 .replace("{{RIGHTS}}", rights);

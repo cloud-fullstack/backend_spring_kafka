@@ -58,5 +58,7 @@ class TenantVerticalsTest {
         assertEquals("pizzeria", TenantVerticals.normalizeBusinessType("restaurant"));
         assertEquals("ecommerce", TenantVerticals.normalizeBusinessType("ecommerce"));
         assertEquals("vehicle", TenantVerticals.normalizeBusinessType("vehicle_rental"));
+        assertEquals("real_estate", TenantVerticals.normalizeVertical("real-estate"));
+        assertEquals("real_estate", TenantVerticals.normalizeBusinessType("immobiliare"));
     }
 }

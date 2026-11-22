@@ -97,6 +97,7 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type                 VARCH
 ALTER TABLE tenants ALTER COLUMN vertical DROP NOT NULL;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS company_name                  VARCHAR(200);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS booking_notification_email    VARCHAR(255);
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS onboarding_profile            TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vat_number                    VARCHAR(20);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country                       CHAR(2);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reseller_id                   UUID REFERENCES resellers(id);
@@ -291,8 +292,22 @@ INSERT INTO subscription_plans (code, name, price, billing_period, sort_order, f
  ('vehicle_api', 'API Rent Car & Van', 99.00, 'once', 15,
   '{"kind":"addon","status":"coming_soon","billing":"one_off","sectors":["vehicle-rental"]}'),
  ('whatsapp_number_setup', 'Setup Numero WhatsApp Business', 49.00, 'monthly', 53,
-  '{"kind":"addon","status":"available","billing":"one_off","hidden":true,"requires":"jolly"}')
+  '{"kind":"addon","status":"available","billing":"one_off","hidden":true,"requires":"jolly"}'),
+ ('calendar_agency', 'Calendario agenzia immobiliare', 690.00, 'once', 60,
+  '{"kind":"addon","status":"available","billing":"one_off","sectors":["real-estate"],"one_time_commission":{"CUSTOM":25,"ZONE":15,"CODE":0}}'),
+ ('calendar_rent', 'Calendario proprietario rent/car', 1190.00, 'once', 61,
+  '{"kind":"addon","status":"available","billing":"one_off","sectors":["vehicle-rental"],"one_time_commission":{"CUSTOM":25,"ZONE":15,"CODE":0}}'),
+ ('enterprise_rent', 'Sistema enterprise rent (Hertz/fleet)', 2490.00, 'once', 62,
+  '{"kind":"addon","status":"available","billing":"one_off","sectors":["vehicle-rental"],"one_time_commission":{"CUSTOM":25,"ZONE":15,"CODE":0}}'),
+ ('shop_integration', 'WooCommerce / Shopify', 890.00, 'once', 63,
+  '{"kind":"addon","status":"available","billing":"one_off","sectors":["e-commerce"],"one_time_commission":{"CUSTOM":25,"ZONE":15,"CODE":0}}')
 ON CONFLICT (code) DO NOTHING;
+
+UPDATE subscription_plans
+   SET price = 490.00,
+       name = 'iCal / Booking.com / Airbnb',
+       features = COALESCE(features, '{}'::jsonb) || '{"kind":"addon","status":"available","billing":"one_off","sectors":["bnb-booking"],"one_time_commission":{"CUSTOM":25,"ZONE":15,"CODE":0}}'::jsonb
+ WHERE code = 'ical_integration';
 
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS stripe_subscription_updated_at TIMESTAMPTZ;
 ALTER TABLE billing_commissions ADD COLUMN IF NOT EXISTS stripe_invoice_id VARCHAR(255);

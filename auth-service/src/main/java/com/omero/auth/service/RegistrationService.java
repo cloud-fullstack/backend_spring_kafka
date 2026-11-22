@@ -12,6 +12,7 @@ import com.omero.auth.repository.TenantRepository;
 import com.omero.auth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ public class RegistrationService {
     private final BusinessVerticalRepository verticalRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChannelEntitlementClient entitlements;
+    private final int demoDays;
 
     public RegistrationService(
             UserRepository userRepository,
@@ -45,12 +47,26 @@ public class RegistrationService {
             BusinessVerticalRepository verticalRepository,
             PasswordEncoder passwordEncoder,
             ChannelEntitlementClient entitlements) {
+        this(userRepository, tenantRepository, resellerRepository, verticalRepository,
+                passwordEncoder, entitlements, 7);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public RegistrationService(
+            UserRepository userRepository,
+            TenantRepository tenantRepository,
+            ResellerRepository resellerRepository,
+            BusinessVerticalRepository verticalRepository,
+            PasswordEncoder passwordEncoder,
+            ChannelEntitlementClient entitlements,
+            @Value("${billing.demo-days:7}") int demoDays) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.resellerRepository = resellerRepository;
         this.verticalRepository = verticalRepository;
         this.passwordEncoder = passwordEncoder;
         this.entitlements = entitlements;
+        this.demoDays = Math.max(1, demoDays);
     }
 
     public record Result(User user, String referralCode) {}
@@ -93,6 +109,7 @@ public class RegistrationService {
         tenant.setVatNumber(request.getVatNumber());
         tenant.setBookingNotificationEmail(
                 resolveBookingNotificationEmail(email, request.getBookingNotificationEmail()));
+        tenant.setOnboardingProfile(SectorOnboarding.toJson(vertical, request.getOnboardingProfile()));
         attributeReseller(tenant, request.getReferralCode());
         tenant = tenantRepository.save(tenant);
 
@@ -153,6 +170,12 @@ public class RegistrationService {
         return new Result(user, reseller.getReferralCode());
     }
 
+    /**
+     * Social signup: tenant.vertical stays null until {@link #completeProfile}.
+     * Auth returns {@code profileIncomplete}; the SPA must send the user to
+     * /customer-registration. Login and GET /plan repeat the same flag so a
+     * tenant cannot sit on the dashboard without a sector.
+     */
     @Transactional
     public User createFromSocial(String provider, SocialUser socialUser) {
         if (socialUser == null || !socialUser.isEmailVerified()) {
@@ -185,6 +208,15 @@ public class RegistrationService {
             String verticalRaw,
             String companyName,
             String bookingNotificationEmail) {
+        completeProfile(userId, verticalRaw, companyName, bookingNotificationEmail, null);
+    }
+
+    public void completeProfile(
+            java.util.UUID userId,
+            String verticalRaw,
+            String companyName,
+            String bookingNotificationEmail,
+            java.util.Map<String, String> onboardingProfile) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new SecurityException("Invalid credentials"));
         if (user.getTenantId() == null) {
@@ -212,6 +244,7 @@ public class RegistrationService {
         String loginEmail = normalizeEmail(user.getEmail());
         tenant.setBookingNotificationEmail(
                 resolveBookingNotificationEmail(loginEmail, bookingNotificationEmail));
+        tenant.setOnboardingProfile(SectorOnboarding.toJson(vertical, onboardingProfile));
         tenantRepository.save(tenant);
         entitlements.startTrialConfig(tenant.getId(), tenant.getBusinessType());
     }
@@ -256,7 +289,18 @@ public class RegistrationService {
         tenant.setBusinessType(businessType);
         tenant.setCountry(country);
         tenant.setLastSeenAt(OffsetDateTime.now());
+        startDemoClock(tenant);
         return tenant;
+    }
+
+    /** 7-day demo: 3d-left at start+4d, 1d-left at start+(n-1), last day at start+n. */
+    void startDemoClock(Tenant tenant) {
+        OffsetDateTime start = OffsetDateTime.now();
+        tenant.setTrialStartedAt(start);
+        tenant.setTrialDays(demoDays);
+        tenant.setTrialReminder3dAt(start.plusDays(Math.max(1, demoDays - 3)));
+        tenant.setTrialReminder1dAt(start.plusDays(Math.max(1, demoDays - 1)));
+        tenant.setTrialReminder0dAt(start.plusDays(demoDays));
     }
 
     private void attributeReseller(Tenant tenant, String rawCode) {

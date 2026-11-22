@@ -28,4 +28,14 @@ class WelcomeEmailI18nTest {
         assertTrue(html.contains("Accedi al tuo account"));
         assertEquals("Benvenuto su Telemaco — registrazione completata", WelcomeEmailI18n.IT.subject());
     }
+
+    @Test
+    void applyInsertsPricingBlock() {
+        String html = WelcomeEmailI18n.IT.apply(
+                "{{BODY}}|{{PRICING}}|{{LOGIN_URL}}",
+                "https://telemaco.app/dashboard",
+                "<p>settore</p>");
+        assertTrue(html.contains("<p>settore</p>"));
+        assertTrue(html.contains("https://telemaco.app/dashboard"));
+    }
 }

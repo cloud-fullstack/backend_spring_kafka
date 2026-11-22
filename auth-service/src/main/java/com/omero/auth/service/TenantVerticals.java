@@ -39,7 +39,10 @@ public final class TenantVerticals {
             Map.entry("pizzeria", "restaurant"),
             Map.entry("restaurant", "restaurant"),
             Map.entry("e-commerce", "ecommerce"),
-            Map.entry("ecommerce", "ecommerce"));
+            Map.entry("ecommerce", "ecommerce"),
+            Map.entry("real-estate", "real_estate"),
+            Map.entry("real_estate", "real_estate"),
+            Map.entry("immobiliare", "real_estate"));
 
     private static final Map<String, String> BUSINESS_TYPES = Map.ofEntries(
             Map.entry("doctor", "doctor"),
@@ -61,7 +64,10 @@ public final class TenantVerticals {
             Map.entry("restaurant", "pizzeria"),
             Map.entry("pizzeria", "pizzeria"),
             Map.entry("e-commerce", "ecommerce"),
-            Map.entry("ecommerce", "ecommerce"));
+            Map.entry("ecommerce", "ecommerce"),
+            Map.entry("real-estate", "real_estate"),
+            Map.entry("real_estate", "real_estate"),
+            Map.entry("immobiliare", "real_estate"));
 
     private TenantVerticals() {}
 

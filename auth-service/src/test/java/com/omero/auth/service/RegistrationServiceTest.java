@@ -83,6 +83,11 @@ class RegistrationServiceTest {
         assertEquals("demo", cap.getValue().getStatus());
         assertEquals("medical", cap.getValue().getVertical());
         assertEquals("doctor", cap.getValue().getBusinessType());
+        assertNotNull(cap.getValue().getTrialStartedAt());
+        assertEquals(7, cap.getValue().getTrialDays());
+        assertNotNull(cap.getValue().getTrialReminder3dAt());
+        assertNotNull(cap.getValue().getTrialReminder1dAt());
+        assertNotNull(cap.getValue().getTrialReminder0dAt());
         verify(entitlements).startTrialConfig(cap.getValue().getId(), "doctor");
     }
 

@@ -53,6 +53,9 @@ public class RegisterRequest {
     @Size(max = 20)
     private String referralCode;
 
+    /** Compact sector fields collected at registration (not integration credentials). */
+    private java.util.Map<String, String> onboardingProfile;
+
     @AssertTrue
     private boolean dpaAccepted;
 

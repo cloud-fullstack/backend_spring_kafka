@@ -105,11 +105,13 @@ public enum OtpEmailI18n {
     }
 
     public String apply(String html, String code, Instant expires, long minutes, String siteBase) {
-        String time = DateTimeFormatter.ofPattern("HH:mm")
-                .withLocale(Locale.forLanguageTag(lang))
-                .withZone(ZoneId.of(zone))
-                .format(expires);
-        String base = siteBase.endsWith("/") ? siteBase.substring(0, siteBase.length() - 1) : siteBase;
+        String time = expires == null ? "--:--"
+                : DateTimeFormatter.ofPattern("HH:mm")
+                        .withLocale(Locale.forLanguageTag(lang))
+                        .withZone(ZoneId.of(zone))
+                        .format(expires);
+        String base = siteBase == null || siteBase.isBlank() ? "https://telemaco.app" : siteBase.trim();
+        base = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
         return html
                 .replace("{{LANG}}", lang)
                 .replace("{{SUBJECT}}", subject())

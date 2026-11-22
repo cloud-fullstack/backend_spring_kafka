@@ -36,6 +36,10 @@ public class Tenant {
     @Column(name = "booking_notification_email")
     private String bookingNotificationEmail;
 
+    /** Sector fields collected at signup (JSON). Integration secrets are stored later. */
+    @Column(name = "onboarding_profile")
+    private String onboardingProfile;
+
     @Column(name = "vat_number")
     private String vatNumber;
 
@@ -62,4 +66,20 @@ public class Tenant {
 
     @Column(name = "suspended_at")
     private OffsetDateTime suspendedAt;
+
+    /** Demo clock. Reminders: scheduled send time; null after the mail went out. */
+    @Column(name = "trial_started_at")
+    private OffsetDateTime trialStartedAt;
+
+    @Column(name = "trial_days")
+    private Integer trialDays;
+
+    @Column(name = "trial_reminder_3d_at")
+    private OffsetDateTime trialReminder3dAt;
+
+    @Column(name = "trial_reminder_1d_at")
+    private OffsetDateTime trialReminder1dAt;
+
+    @Column(name = "trial_reminder_0d_at")
+    private OffsetDateTime trialReminder0dAt;
 }

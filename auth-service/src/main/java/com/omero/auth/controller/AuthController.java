@@ -119,6 +119,7 @@ public class AuthController {
                 .success(true)
                 .message("Login successful")
                 .token(token)
+                .profileIncomplete(tenantVerticalMissing(user))
                 .build());
     }
 
@@ -171,7 +172,8 @@ public class AuthController {
                 currentUserId(),
                 request.getVertical(),
                 request.getCompanyName(),
-                request.getBookingNotificationEmail());
+                request.getBookingNotificationEmail(),
+                request.getOnboardingProfile());
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -219,6 +221,7 @@ public class AuthController {
         body.put("businessType", businessType);
         body.put("registrationEmail", registrationEmail);
         body.put("bookingNotificationEmail", bookingNotificationEmail);
+        body.put("profileIncomplete", user != null && tenantVerticalMissing(user));
         return ResponseEntity.ok(body);
     }
 
@@ -248,7 +251,7 @@ public class AuthController {
             }
         } else if ("facebook".equalsIgnoreCase(provider)) {
             if (existing.getFacebookId() == null || !existing.getFacebookId().equals(sub)) {
-                throw new SecurityException("Invalid credentials");
+                throw new IllegalArgumentException("Use password or Google to link this account");
             }
         }
         return userRepository.save(existing);

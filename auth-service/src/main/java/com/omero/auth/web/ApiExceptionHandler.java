@@ -121,7 +121,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                  "Partner not found",
                  "Partner program is not open",
                  "Contract template not available",
-                 "Signature missing mandatory declarations" -> raw;
+                 "Signature missing mandatory declarations",
+                 "Use password or Google to link this account",
+                 "Invalid booking notification email",
+                 "Security verification failed" -> raw;
             default -> "Invalid request";
         };
     }

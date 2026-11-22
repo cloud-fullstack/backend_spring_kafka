@@ -319,6 +319,16 @@ public class PartnerProgramService {
         };
     }
 
+    /** One-time setup commission in basis points (CUSTOM 25%, ZONE 15%, CODE n/a). */
+    static int oneTimeRateBps(String type) {
+        return switch (type) {
+            case "CUSTOM" -> 2500;
+            case "ZONE" -> 1500;
+            case "CODE", "DPA" -> 0;
+            default -> throw new IllegalArgumentException("Invalid request");
+        };
+    }
+
     static String normalizedSha(String sha) {
         return sha == null ? "" : sha.trim();
     }

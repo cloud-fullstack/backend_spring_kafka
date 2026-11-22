@@ -17,4 +17,6 @@ public class CompleteProfileRequest {
     @Email
     @Size(max = 254)
     private String bookingNotificationEmail;
+
+    private java.util.Map<String, String> onboardingProfile;
 }

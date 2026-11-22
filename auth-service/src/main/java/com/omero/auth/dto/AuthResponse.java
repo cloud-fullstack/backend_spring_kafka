@@ -17,4 +17,5 @@ public class AuthResponse {
     private String message;
     private String token;
     private String referralCode;
+    private boolean profileIncomplete;
 }
