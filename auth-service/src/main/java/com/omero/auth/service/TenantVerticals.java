@@ -24,6 +24,7 @@ public final class TenantVerticals {
             Map.entry("lab-analysis", "medical"),
             Map.entry("lab", "medical"),
             Map.entry("medical", "medical"),
+            Map.entry("professionista", "medical"),
             Map.entry("vehicle-rental", "vehicle_rental"),
             Map.entry("vehicle_rental", "vehicle_rental"),
             Map.entry("vehicle", "vehicle_rental"),
@@ -47,6 +48,7 @@ public final class TenantVerticals {
     private static final Map<String, String> BUSINESS_TYPES = Map.ofEntries(
             Map.entry("doctor", "doctor"),
             Map.entry("medical", "doctor"),
+            Map.entry("professionista", "doctor"),
             Map.entry("lab-analysis", "lab"),
             Map.entry("lab", "lab"),
             Map.entry("vehicle-rental", "vehicle"),

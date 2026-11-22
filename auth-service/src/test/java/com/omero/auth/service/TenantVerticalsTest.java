@@ -44,6 +44,8 @@ class TenantVerticalsTest {
     @Test
     void signupAndDemoAliasesKeepHandlerFk() {
         assertEquals("medical", TenantVerticals.normalizeVertical("Doctor"));
+        assertEquals("medical", TenantVerticals.normalizeVertical("professionista"));
+        assertEquals("doctor", TenantVerticals.normalizeBusinessType("professionista"));
         assertEquals("legal", TenantVerticals.normalizeVertical("lawyer"));
         assertEquals("hospitality", TenantVerticals.normalizeVertical("bnb"));
         assertEquals("hospitality", TenantVerticals.normalizeVertical("bnb-booking"));
