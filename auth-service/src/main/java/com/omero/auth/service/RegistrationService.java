@@ -109,7 +109,9 @@ public class RegistrationService {
         tenant.setVatNumber(request.getVatNumber());
         tenant.setBookingNotificationEmail(
                 resolveBookingNotificationEmail(email, request.getBookingNotificationEmail()));
-        tenant.setOnboardingProfile(SectorOnboarding.toJson(vertical, request.getOnboardingProfile()));
+        tenant.setOnboardingProfile(SectorOnboarding.withPlanIntent(
+                SectorOnboarding.toJson(vertical, request.getOnboardingProfile()),
+                request.getPlanIntent()));
         attributeReseller(tenant, request.getReferralCode());
         tenant = tenantRepository.save(tenant);
 

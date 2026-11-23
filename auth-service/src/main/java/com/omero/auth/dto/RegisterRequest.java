@@ -62,4 +62,8 @@ public class RegisterRequest {
     /** Cloudflare Turnstile token from the SPA. Optional until siteverify is wired. */
     @Size(max = 2048)
     private String turnstileToken;
+
+    /** Piano scelto in SectorPricingStep (bronze|silver|gold|platinum). Non attiva il pagamento. */
+    @Size(max = 32)
+    private String planIntent;
 }

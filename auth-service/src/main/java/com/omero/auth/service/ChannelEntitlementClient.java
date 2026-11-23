@@ -339,6 +339,12 @@ public class ChannelEntitlementClient {
             body.put("env", billingEnv);
             users.findFirstByTenantIdAndTenantAdminTrue(tenantId)
                     .ifPresent(u -> body.put("userId", u.getId().toString()));
+            Tenant t = tenants.findById(tenantId).orElse(null);
+            if (t != null && !active && t.getCreatedAt() != null) {
+                int days = t.getTrialDays() != null && t.getTrialDays() > 0
+                        ? t.getTrialDays() : SectorOnboarding.DEMO_TRIAL_DAYS;
+                body.put("trialEndsAt", t.getCreatedAt().plusDays(days).toString());
+            }
             http.postForEntity(
                     llmUrl.replaceAll("/$", "") + "/internal/billing/entitlements",
                     new HttpEntity<>(body, h),

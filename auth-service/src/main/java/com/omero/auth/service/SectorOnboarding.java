@@ -83,6 +83,23 @@ public final class SectorOnboarding {
         return "yes".equalsIgnoreCase(profile.getOrDefault("treatsHealthData", ""));
     }
 
+    public static String withPlanIntent(String json, String planIntent) {
+        String p = planIntent == null ? "" : planIntent.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("bronze", "silver", "gold", "platinum").contains(p)) {
+            return json;
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = json == null || json.isBlank()
+                    ? new LinkedHashMap<>()
+                    : JSON.readValue(json, Map.class);
+            m.put("planIntent", p);
+            return JSON.writeValueAsString(m);
+        } catch (JsonProcessingException e) {
+            return json;
+        }
+    }
+
     public static String toJson(String vertical, Map<String, String> raw) {
         Map<String, String> clean = sanitize(vertical, raw);
         try {
